@@ -26,8 +26,14 @@ create)
 ship)
   IP=$2
   HOST=${API_HOST:-${IP//./-}.sslip.io}   # set API_HOST=api.<your-domain> once DNS points at IP
-  rsync -az --exclude node_modules --exclude .venv --exclude .git --exclude 'data/raw' --exclude 'web' \
-    --exclude 'data/build/tiles' ./ root@"$IP":/opt/h2out/
+  # only what the API needs: code + model files (no data/raw: licensed facilities data stays local)
+  ssh -o StrictHostKeyChecking=accept-new root@"$IP" "mkdir -p /opt/h2out/data/build /opt/h2out/web"
+  rsync -az -R server pipeline/pyproject.toml pipeline/uv.lock pipeline/*.py data/build/network.pkl data/build/supply.pkl \
+    data/build/houston.inp data/build/hydraulic_index.npz data/build/fixed root@"$IP":/opt/h2out/
+  # server-side secrets: Tiger Data + Gemini only (the Vultr key never leaves this machine)
+  grep -E "^(TIGER_DATABASE_URL|GEMINI_API_KEY|GEMINI_MODEL)=" .env | ssh root@"$IP" "cat > /opt/h2out/.env && chmod 600 /opt/h2out/.env"
+  # frontend (optional): web/dist built with VITE_API_URL=https://$HOST/api
+  if [ "${WITH_WEB:-0}" = 1 ]; then rsync -az --delete web/dist/ root@"$IP":/opt/h2out/web/; fi
   ssh root@"$IP" "export HOST=$HOST; "'set -e
     command -v uv || curl -LsSf https://astral.sh/uv/install.sh | sh
     export PATH=$HOME/.local/bin:$PATH
@@ -43,13 +49,13 @@ Restart=always
 [Install]
 WantedBy=multi-user.target
 UNIT
-    systemctl daemon-reload && systemctl enable --now h2out
+    systemctl daemon-reload && systemctl enable --now h2out && systemctl restart h2out
     # HTTPS (the site is served over https, so the API must be too): Caddy + automatic certificate
     command -v caddy || (apt-get update -qq && apt-get install -y -qq caddy)
-    printf "%s {\n  reverse_proxy 127.0.0.1:8787\n}\n" "${HOST}" > /etc/caddy/Caddyfile
+    printf "%s {\n  handle_path /api/* {\n    reverse_proxy 127.0.0.1:8787\n  }\n  handle {\n    root * /opt/h2out/web\n    file_server\n  }\n}\n" "${HOST}" > /etc/caddy/Caddyfile
     systemctl restart caddy
     ufw allow 80/tcp || true; ufw allow 443/tcp || true'
-  echo "API: https://$HOST/health"
+  echo "API: https://$HOST/api/health   site: https://$HOST/ (if WITH_WEB=1)"
   ;;
 *) echo "usage: $0 create | ship IP"; exit 1 ;;
 esac
