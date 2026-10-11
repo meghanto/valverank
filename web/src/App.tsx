@@ -398,6 +398,18 @@ export default function App() {
     for (const id of ['valves-close', 'valves-dead']) map.setFilter(id, ['in', ['get', 'id'], ['literal', []]])
   }
 
+  // Esc returns from a break to the overview (fields keep Esc for themselves, e.g. closing search suggestions)
+  useEffect(() => {
+    if (!brk) return
+    const onKey = (e: KeyboardEvent) => {
+      const t = e.target as HTMLElement | null
+      if (e.key === 'Escape' && !(t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA'))) clearBreak()
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [brk])
+
   const segs = segsRef.current
   const paper = brk && segs ? segs.paper[brk.sp] : null
   const real = brk && segs ? segs.real[brk.sr] : null
@@ -410,7 +422,7 @@ export default function App() {
         <Search onGo={c => { setInitial(undefined); goTo(c) }} />
         <nav className="tabs" role="tablist" aria-label="Views">
           {(['break', 'fix', 'evidence'] as const).map(v => (
-            <button key={v} role="tab" aria-selected={view === v} className={view === v ? 'on' : ''} onClick={() => switchView(v)}>
+            <button key={v} role="tab" aria-selected={view === v} className={view === v ? 'on' : ''} onClick={() => { if (brk) clearBreak(); switchView(v) }}>
               {VIEW_LABEL[v]}
             </button>
           ))}
@@ -475,7 +487,7 @@ export default function App() {
                 </tbody>
               </table>
             </details>
-            <button className="reset" onClick={clearBreak}>Back to overview</button>
+            <button className="reset" onClick={clearBreak}>Back to overview <kbd>Esc</kbd></button>
           </section>
         )}
 
