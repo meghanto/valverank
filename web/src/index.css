@@ -1,4 +1,15 @@
+/* type system from the pitch deck (presentation/DESIGN.md): Union Gothic headlines and impact numbers,
+   National Park explanations, Katwijk Mono technical labels */
+@font-face { font-family: 'Union Gothic'; src: url('/fonts/union-gothic.woff2') format('woff2'); font-display: swap; }
+@font-face { font-family: 'Union Gothic Numbers'; src: url('/fonts/union-gothic-numbers.woff2') format('woff2'); font-display: swap; }
+@font-face { font-family: 'Katwijk Mono'; src: url('/fonts/katwijk-mono.woff2') format('woff2'); font-display: swap; }
+@font-face { font-family: 'National Park Deck'; src: url('/fonts/national-park.woff2') format('woff2'); font-display: swap; }
+
 :root {
+  --font-body: 'National Park', 'National Park Deck', system-ui, -apple-system, sans-serif;
+  --font-display: 'Union Gothic', 'National Park', sans-serif;
+  --font-num: 'Union Gothic Numbers', 'Union Gothic', 'National Park', sans-serif;
+  --font-mono: 'Katwijk Mono', ui-monospace, 'SF Mono', monospace;
   --bg: #111318;
   --panel: #171a21;
   --ink: #f5f3ee;
@@ -7,7 +18,7 @@
   --paper: #4fb3ff;
   --real: #ff4f32;
   --gold: #ffd166;
-  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  font-family: var(--font-body);
   color: var(--ink);
   background: var(--bg);
 }
@@ -173,7 +184,7 @@ footer { margin-top: auto; font-size: 11px; color: var(--muted); line-height: 1.
 .cases button { text-align: left; font: inherit; font-size: 14px; line-height: 1.4; color: var(--ink); background: #1a1e26; border: 1px solid #2c3340; border-radius: 10px; padding: 11px 13px; cursor: pointer; transition: background .15s ease-out, border-color .15s ease-out; }
 .cases button:hover { background: #20252f; border-color: #3ddc97; }
 .figures { margin: 6px 0 0; display: grid; gap: 14px; }
-.figures div { display: grid; grid-template-columns: 150px 1fr; gap: 12px; align-items: baseline; }
+.figures div { display: grid; grid-template-columns: minmax(96px, max-content) 1fr; gap: 12px; align-items: baseline; }
 .figures dt { font-size: 21px; white-space: nowrap; font-weight: 700; font-variant-numeric: tabular-nums; letter-spacing: -0.02em; }
 .figures dd { margin: 0; font-size: 13px; color: var(--muted); line-height: 1.4; }
 .limits ul { margin: 0; padding-left: 18px; display: grid; gap: 8px; font-size: 13px; color: var(--muted); line-height: 1.45; }
@@ -189,3 +200,18 @@ footer { margin-top: auto; font-size: 11px; color: var(--muted); line-height: 1.
 }
 
 .reset kbd { font: inherit; font-size: 11px; color: var(--muted); border: 1px solid var(--line); border-radius: 4px; padding: 0 5px; margin-left: 6px; }
+
+/* display + numerals: Union Gothic is a single-weight condensed face; never synthesize bold */
+.brand, h1, .panel h2, .repair h2, .year h2, .history h2, .evidence h2, .limits h2 {
+  font-family: var(--font-display); font-weight: 400; font-synthesis: none; letter-spacing: 0.01em; }
+.brand { font-size: 28px; line-height: 1; }
+.panel h2 { font-size: 27px; line-height: 1.05; margin-bottom: 8px; }
+.scen-big, .figures dt, .repair .ch span, .ch span, .kpi-value {
+  font-family: var(--font-num); font-weight: 400; font-synthesis: none; letter-spacing: 0.005em; }
+.scen-big { font-size: 38px; line-height: 1; }
+.figures dt { font-size: 30px; }
+.repair .ch span, .ch span { font-size: 34px; }
+/* technical labels: units, ticks, ids, slider readouts */
+.scen-unit, .track-label, .history .tick, .year .tick, .dead li b, .slider span b, .reset kbd, .seg span, .legend-phases {
+  font-family: var(--font-mono); letter-spacing: 0; }
+.scen-unit, .track-label { font-size: 11px; text-transform: none; }
