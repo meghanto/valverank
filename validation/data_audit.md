@@ -266,3 +266,28 @@ Change: `server/engine.py` counts a junction as affected while gushing when its 
 | 8″ piece 85470 | 0 | — |
 
 Open issue: transmission footprints are very large (a 25% bore 54″ break drains ~107 MGD, about half of modelled demand). The 15 psi threshold is an assumption, not a standard.
+
+## 14. Hydraulic model B: baseline fixed (2026-10-11 05:40, now the live model)
+
+Cause of the weak baseline: mostly **Kingwood**, not west Houston. Kingwood connects to the rest of the network through ~10 pipes (largest 20″), has ~6,600 gpm of demand, and its 31 sources were each capped at the uniform 159 gpm, so it was starved (10k of the 11k junctions below 35 psi; all of those below 20). West elevations are sane (median 23 m vs 12 m east), so source heads were left alone.
+
+Change (`pipeline/hydraulic.py`, new flags; defaults byte-identical):
+- `--alloc=N`: the secondary-source total stays at GW_SHARE × demand (0.25), but is re-dispatched each round from sources running under their cap to capped sources, in proportion to the demand-weighted shortfall below 35 psi in each source's service area (network-nearest source). Converged in 5 rounds.
+- `--headroom=1.5`: each source can deliver 1.5× its dispatched flow during a break (TCEQ: pumps must meet peak hour with the largest pump out). Baseline draw from these sources is 32.6% of demand.
+- Build: `uv run --project pipeline python pipeline/hydraulic.py --gw=0.25 --alloc=10 --headroom=1.5 --out=data/build/hydraulic_b`, then copied into `data/build/` (model A kept in `data/build/hydraulic_a/`).
+
+| Check | Model A | Model B (live) |
+|---|---|---|
+| Baseline p5/25/50/75 (psi) | 37.7/47.5/55.2/61.5 | 44.3/51.4/58.4/63.7 |
+| Junctions < 20 / 35 / 40 psi | 3.7% / 4.1% / 6.9% | 0% / 0.04% / 0.86% |
+| Clinton Dr 96″ gushing, newly < 20 psi, 25% / full bore | 253,918 / 431,098 | 202,118 / 424,755 |
+| Clinton Dr isolated: < 20 psi / drop > 1 psi | 0 / 340k | 0 / 10.5k |
+| 54″ piece 10256, 25% bore: customers losing ≥ 15 psi | 267,786 | 174,792 (p10/50/90 distance 3.4/10.0/20.0 km) |
+| Window vs full, median / worst (psi) | 0.5 / 3.9 (29 breaks) | 0.42 / 40.9 (49 breaks; worst all in Kingwood) |
+
+- Remaining < 35 psi junctions (~120) sit on the highest ground in NW Houston (−95.57, 29.88; 31–35 m).
+- Kingwood window failure: a 25% bore 12″ leak (~4,700 gpm) exceeds the area's spare capped supply (~3,300 gpm); a window pinned at baseline head implies unlimited supply. **Fix: breaks inside (−95.30, 29.98)–(−95.10, 30.15) always use the full solve** (`EXACT_BOXES` in `server/engine.py`, ~9 s per click).
+- Clinton Dr still reproduces a citywide loss while gushing; the isolated state is now far less stiff (10.5k vs 340k customers dropping > 1 psi).
+- Assumptions added: 35 psi dispatch target, 16 gpm minimum per source, 1.5 headroom, caps fixed during a break.
+
+**Batch provenance after B.** Transmission mains (≥ 24″, 1,882 segments) are re-run on model B with the 15 psi metric (`data/build/batch_b_trans.jsonl`; `repair.py` merges it). Distribution rows keep the earlier run (model A, old metric, timing-corrected). Sensitivity, from 33,500 distribution segments re-run on model A with the new metric (`batch_a.jsonl`): paper customer-hours +4.7%, real +4.1%, real/paper ratio 2.855 → 2.839. The headline ratio is insensitive to the pressure metric; absolute distribution customer-hours may be ~4–5% low.
