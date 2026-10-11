@@ -35,8 +35,14 @@ def fix_timing(r, t_first=60, t_dead=90, t_repair=360):
 
 def main():
     rows = [json.loads(l) for l in open(ROOT / "data/build/batch.jsonl") if l.strip()]
-    rows = list({r["seg"]: r for r in rows if "error" not in r}.values())  # one row per segment (resumed runs may repeat)
-    rows = [fix_timing(r) for r in rows]
+    rows = {r["seg"]: r for r in rows if "error" not in r}  # one row per segment (resumed runs may repeat)
+    # transmission mains re-run on the corrected hydraulic model (audit §13); their pressure phase dominates.
+    # Distribution rows keep the earlier run: gushing is ~1% of their customer-hours.
+    trans = ROOT / "data/build/batch_b_trans.jsonl"
+    if trans.exists():
+        new = [json.loads(l) for l in open(trans) if l.strip()]
+        rows.update({r["seg"]: r for r in new if "error" not in r})
+    rows = [fix_timing(r) for r in rows.values()]
     N = pickle.load(open(ROOT / "data/build/network.pkl", "rb"))
     total_len = sum(p[4] for p in N["pieces"])
     covered_len = sum(r["length_m"] for r in rows)

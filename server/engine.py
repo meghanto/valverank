@@ -30,6 +30,9 @@ REQUIRED_PSI = 20.0
 # gushing-phase impact = pressure lost vs baseline, not an absolute floor: the uncalibrated baseline is
 # weakest far from the plants (west Houston), so 'newly below 20 psi' lit up the wrong place (audit §10)
 DROP_PSI = 15.0
+# areas the 4 km window can't solve: Kingwood is fed by its own capped sources and ~10 boundary pipes,
+# so pinning the window boundary at baseline head hides a 40+ psi drop (audit §13). Full solve there.
+EXACT_BOXES = [(-95.30, 29.98, -95.10, 30.15)]  # lon0, lat0, lon1, lat1
 PSI_PER_FT = 0.4335
 RADIUS_M = 4000.0  # window accuracy at 4 km: median 0.5 psi, worst 3.9 psi vs full solve (29 breaks)
 BIG_IN = 24
@@ -273,7 +276,9 @@ class Engine:
     def run(self, k, opening=0.25, t_first=60, t_dead=90, t_repair=360, exact=False):
         t0 = time.time()
         k = int(k)
-        exact = bool(exact or self.diam[k] >= BIG_IN)
+        lon, lat = self.pieces[k][3][0]
+        in_box = any(a <= lon <= c and b <= lat <= d for a, b, c, d in EXACT_BOXES)
+        exact = bool(exact or self.diam[k] >= BIG_IN or in_box)
         emit = (int(self.pa[k]), emitter_coeff(self.diam[k], opening))
         cs = {s: int(self.comp[s][k]) for s in ("paper", "real")}
         seg_p = self.members["paper"][cs["paper"]]
