@@ -85,7 +85,10 @@ class Brief(BaseModel):
 @app.post("/ask")
 def ask(body: Ask):
     from server import llm
-    parsed = llm.parse_question(body.q)            # {"place": ..., "opening": ..., "t_first": ...}
+    try:
+        parsed = llm.parse_question(body.q)        # {"place": ..., "opening": ..., "t_first": ...}
+    except Exception as e:  # quota, billing, network: say so instead of a bare 500
+        raise HTTPException(503, f"Gemini unavailable: {str(e)[:120]}")
     lonlat = llm.geocode(parsed["place"])
     if not lonlat:
         raise HTTPException(404, f"could not locate {parsed['place']!r}")
@@ -97,4 +100,7 @@ def ask(body: Ask):
 @app.post("/brief")
 def brief(body: Brief):
     from server import llm
-    return {"brief": llm.crew_brief(body.run)}
+    try:
+        return {"brief": llm.crew_brief(body.run)}
+    except Exception as e:
+        raise HTTPException(503, f"Gemini unavailable: {str(e)[:120]}")

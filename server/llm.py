@@ -10,12 +10,19 @@ import time
 import urllib.parse
 import urllib.request
 
-MODEL = os.environ.get("GEMINI_MODEL", "gemini-2.5-flash")
+MODEL = os.environ.get("GEMINI_MODEL", "gemini-3.8-flash")  # 2.5-flash is closed to new API keys
+
+
+_CLIENT = None
 
 
 def _client():
-    from google import genai
-    return genai.Client(api_key=os.environ["GEMINI_API_KEY"])
+    """One client per process: a temporary client is garbage-collected mid-request and closes its HTTP pool."""
+    global _CLIENT
+    if _CLIENT is None:
+        from google import genai
+        _CLIENT = genai.Client(api_key=os.environ["GEMINI_API_KEY"])
+    return _CLIENT
 
 
 def parse_question(q: str) -> dict:
