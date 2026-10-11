@@ -13,6 +13,16 @@ Shutoff runs this on Houston's real water network (290,959 pipe segments, 166,36
 | Fire hydrants out, average break | 1.6 | **3.5** |
 | Largest single outage | 1,683 customers | **2,496 customers** |
 
+**Customer-hours without water per year** (pressure model + timeline, one simulated break per isolation segment, all 72,171 segments, weighted by pipe length × 11,119 breaks/yr):
+
+| | Every valve works | City-recorded valve status |
+|---|---|---|
+| Neighborhood mains (< 24″, 10,335 breaks/yr) | 1.03 M | **2.02 M** |
+| Citywide dead-valve cost | — | **1.32 M** |
+| Repair the planner's top 100 / 500 / 3,000 dead valves | | recovers 38% / 59% / 87% of that cost |
+
+Transmission mains (≥ 24″, 784 breaks/yr) add 12.4–12.7 M, almost all of it low pressure while the break gushes. That figure depends on the assumed break size and response time, and no valve repair changes it, so it is reported separately.
+
 78% of valves on mains were last inspected five or more years ago (industry guidance: exercise every valve within five years).
 
 ## How it works
@@ -29,8 +39,11 @@ Shutoff runs this on Houston's real water network (290,959 pipe segments, 166,36
      - **real**: valves with `CONDITION = 'INOP'` can't close, so the segments on either side merge.
    - Customers and hydrants are snapped to the nearest main.
 3. **Supply loss** (`pipeline/supply.py`): closing a segment can also cut off segments whose only path to a water source runs through it. Sources are the City's 218 in-service plants, pump stations and storage tanks (layer 44). One articulation-point pass over the segment graph gives every segment's downstream loss; `pipeline/test_supply.py` checks it against brute force.
-4. **Export** (`pipeline/export.py`) writes the demo area (NW and central Houston) as GeoJSON, plus citywide statistics.
-5. **Web** (`web/`): React + MapLibre. Clicking a pipe looks up its paper and real segments and animates the difference.
+4. **Pressure** (`pipeline/hydraulic.py`): an EPANET 2.2 model of the whole network (3 surface-water plants as fixed heads, 218 capped secondary sources, pressure-driven demand, elevation from hydrant records). The break is an emitter sized from the pipe bore. See `validation/data_audit.md` §10.
+5. **Timeline** (`server/engine.py`): gushing → still gushing because a first-ring valve is dead → isolated until repair. Each phase counts customers (pressure < 20 psi while gushing; segment + downstream when isolated) and sums customer-hours. Small mains solve a 4 km window pinned to baseline heads (~200 ms, median error 0.5 psi vs the full solve, `pipeline/window.py`); mains ≥ 24″ solve the full city.
+6. **Batch + repair planner** (`pipeline/batch.py`, `pipeline/repair.py`): one break per isolation segment citywide, then a greedy pick of the dead valves whose repair recovers the most customer-hours.
+7. **Export** (`pipeline/export.py`): citywide vector tiles (PMTiles), segment tables and statistics.
+8. **Web** (`web/`, React + MapLibre) and **API** (`server/app.py`, FastAPI): click any pipe to break it, see paper vs real outage, the timeline with assumption sliders, and the repair planner.
 
 ```bash
 uv run --project pipeline python pipeline/ingest.py    # ~2 min, ~220 MB to data/raw
@@ -54,9 +67,11 @@ cd proofs && bend PROOF.bend --verdict   # ALL PROOFS CHECK
 ## Limitations (read before quoting numbers)
 
 - **Data snapshot.** The City's public water GIS was last edited 2023-06-05, and valve condition records end in March 2023. Pipe networks change slowly (about 0.3% of lines replaced per year). Inoperable flags are a floor: dead valves don't fix themselves.
-- **Connectivity-only model.** There's no hydraulics. An isolation segment is where water *can* be shut off, not a pressure simulation.
+- **Pressure model is uncalibrated.** Plant pressures, demand, break size and response times are assumptions (sliders in the app). It reproduces the 2020 Clinton Dr citywide pressure loss but not neighborhood-scale reports.
 - **Customers are utility accounts, not people.** An apartment complex can be a single account.
-- **Not validated against real outages.** Only 3 news-reported breaks have outage counts (`validation/model_vs_news.md`); the model is low on both; it has no hydraulics (pressure loss), only connectivity.
+- **Few real outages to validate against.** Only 2 news-reported breaks give comparable customer counts (`validation/model_vs_news.md`); the model is low on both.
+- **Break frequency** is spread by pipe length. Real break rates vary with diameter, material and age; the 11,119/yr HPW figure likely includes leak repairs.
+- **569 segments** (0.8%) sit on fragments outside the pressure model; they get shutoff and downstream counts but no pressure phase.
 - **Data audit:** provenance, cross-checks against Houston Public Works published totals, and known defects are in `validation/data_audit.md`.
 
 ## AI tools used

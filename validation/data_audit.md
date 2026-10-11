@@ -217,3 +217,18 @@ About 900 Houston water-break articles, 2010–2026: sitemaps of ABC13, Houston 
 **Tidwell & Antoine 16″** (reported 2,000; another report says 100+), full-bore rupture: 8–10 customers below 20 psi, ~1,230 drop more than 10 psi. **Not a match** for "without water". Beltway 8 12″ (reported 80), full bore: 0 below 20 psi, 2,052 drop more than 10 psi.
 
 **What can be claimed:** an uncalibrated pressure model that reproduces the 2020 citywide event under every tested assumption. **What can't:** neighborhood-scale pressure predictions.
+
+## 11. Citywide batch (2026-10-11 03:20)
+
+`pipeline/batch.py`: one break per paper segment (its largest-diameter, then longest piece), default assumptions (25% bore, 60 min to first valves, +90 min per dead ring, 6 h repair). 72,171 / 72,171 segments; 1,882 used the full-city solve (≥ 24″).
+
+| Class | Breaks/yr (length share) | Paper c-h/yr | Real c-h/yr | Gushing share of paper |
+|---|---|---|---|---|
+| Distribution (< 24″) | 10,335 | 1,031,000 | 2,022,717 | 1% |
+| Transmission (≥ 24″) | 784 | 12,364,922 | 12,691,737 | 99% |
+
+- Dead-valve cost citywide: 1,318,533 c-h/yr (distribution 991,718; transmission 326,815). 25,622 segments have at least one dead first-ring valve; 16,512 distinct dead valves sit in some ring.
+- Repair planner (greedy, `pipeline/repair.py`): top 10 / 100 / 500 / 1,000 / 3,000 recover 17% / 38% / 59% / 70% / 87%.
+- Transmission totals are driven by the gushing phase (mean 9,438 customers below 20 psi per break, median 0). They depend on the break-size and response-time assumptions and are not a headline number.
+- 569 segments first failed with EPANET errors 203/223: their break node lies on a fragment outside the hydraulic model. Fixed (`4b9b629`): they skip the pressure phase and keep shutoff + downstream counts.
+- Superseded: the "top 50 recover 72%" figure from the 2% partial run.

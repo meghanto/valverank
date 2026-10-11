@@ -33,10 +33,14 @@ def main():
 
     value, ring = {}, {}
     base_paper = base_real = 0.0
+    split = {c: {"breaks_per_year": 0.0, "paper": 0.0, "real": 0.0, "gushing_paper": 0.0} for c in ("distribution", "transmission")}
     for r in rows:
         rate = BREAKS_PER_YEAR * r["length_m"] / total_len
         base_paper += r["paper_ch"] * rate
         base_real += r["real_ch"] * rate
+        c = split["transmission" if r["exact"] else "distribution"]  # exact = diameter >= 24 in
+        c["breaks_per_year"] += rate; c["paper"] += r["paper_ch"] * rate; c["real"] += r["real_ch"] * rate
+        c["gushing_paper"] += r["gush"] * rate  # t_first = 60 min, so customers = customer-hours
         if r["dead"] and r["real_ch"] > r["paper_ch"]:
             value[r["seg"]] = (r["real_ch"] - r["paper_ch"]) * rate
             ring[r["seg"]] = set(r["dead"])
@@ -67,6 +71,7 @@ def main():
         "coverage_share_of_pipe_length": round(covered_len / total_len, 3),
         "customer_hours_per_year": {"paper": round(base_paper), "real": round(base_real)},
         "dead_valve_cost_per_year": round(base_real - base_paper),
+        "by_class": {c: {k: round(v) for k, v in d.items()} for c, d in split.items()},
         "recoverable_by_first_ring_repairs": round(sum(value.values())),
         "dead_valves_in_some_ring": len(by_valve),
         "curve": curve,
