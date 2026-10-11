@@ -154,6 +154,6 @@ News check after the fix (`validation/model_vs_news.md`; only 4 events report a 
 | Beltway 8 & Bellfort, 12″ | 74–80 homes and businesses | 8 → 28 | Real scenario is closer; still 3× low |
 | Memorial Dr, 24″ | 1 (an apartment complex) | 7 → 7 | Not comparable (one account = many units) |
 | Tidwell & Antoine, 16″ | 2,000 | 5 → 5 | Miss: no supply model (D5) |
-| Keller St | 9 | 57 → 57 | Model 6× high; the location match is uncertain (37 candidate pipes) |
+| Keller St | 9 HISD schools (KPRC: 3); no customer count | 57 → 57 | Not comparable: the unit is schools |
 
-**These checks don't validate the model.** It's 4 events with uncertain geocodes and mixed units.
+**These checks don't validate the model.** Only 2 events report a customer-like count (Beltway 8, Tidwell), and the model is low on both.
