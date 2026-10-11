@@ -8,3 +8,5 @@ data/build/
 background.md
 *.log
 .claude/
+.env
+.env.*
