@@ -50,6 +50,8 @@ type Break = {
 type ValveProps = { id: number; c: string; r: string | null; cy: number | null; d: number | null; iy: number | null }
 
 const fmt = (n: number) => n.toLocaleString('en-US')
+type View = 'break' | 'fix' | 'evidence'
+const VIEW_LABEL: Record<View, string> = { break: 'Break a main', fix: 'Fix plan', evidence: 'Evidence' }
 type Showcase = { repaired: number; cases: { piece: number; lon: number; lat: number; label: string }[] }
 
 /** Screen distance (px) from (x, y) to a rendered line feature. */
@@ -121,6 +123,8 @@ export default function App() {
   const [showcase, setShowcase] = useState<Showcase | null>(null)
   const [initial, setInitial] = useState<Partial<Params> | undefined>(undefined)
   const [run, setRun] = useState<Run | null>(null)
+  const [view, setView] = useState<View>('break')
+  const repairN = useRef(100)
 
   useEffect(() => {
     fetch(`${DATA}stats.json`).then(r => r.json()).then(setStats)
@@ -268,10 +272,18 @@ export default function App() {
   }, [])
 
   const showRepairs = useCallback((n: number) => {
+    repairN.current = n
     const map = mapRef.current
     if (!map || !map.getLayer('repair')) return
     map.setFilter('repair', ['<', ['get', 'rank'], n])
   }, [])
+
+  /** One task per view; the repair dots belong to the fix plan only. */
+  function switchView(v: View) {
+    setView(v)
+    const map = mapRef.current
+    if (map?.getLayer('repair')) map.setFilter('repair', ['<', ['get', 'rank'], v === 'fix' ? repairN.current : 0])
+  }
 
   useEffect(() => {
     const map = mapRef.current
@@ -355,6 +367,7 @@ export default function App() {
     showFixed([])
     setRun(null)
     startPulse()
+    switchView('break')
     const b: Break = { k: p.k, lngLat, sp: p.sp, sr: p.sr, diameter: p.d, material: p.m, year: p.y, stage: 'paper' }
     setBrk(b)
     timer.current = window.setTimeout(() => {
@@ -392,40 +405,36 @@ export default function App() {
 
   return (
     <div className="app">
+      <header className="topbar">
+        <div className="brand">ValveRank</div>
+        <Search onGo={c => { setInitial(undefined); goTo(c) }} />
+        <nav className="tabs" role="tablist" aria-label="Views">
+          {(['break', 'fix', 'evidence'] as const).map(v => (
+            <button key={v} role="tab" aria-selected={view === v} className={view === v ? 'on' : ''} onClick={() => switchView(v)}>
+              {VIEW_LABEL[v]}
+            </button>
+          ))}
+        </nav>
+      </header>
       <aside className="panel">
-        <header>
-          <h1>ValveRank</h1>
-          <p className="lede">
-            When a Houston water main breaks, crews close the nearest valves. The City's own records mark many of
-            those valves as broken or lost, so the outage spreads to the next ones out.
-          </p>
-        </header>
-
-        {!brk && stats && (
-          <section>
-            <p className="hint">Click any water main on the map, or find your street:</p>
-            <Search onGo={c => { setInitial(undefined); goTo(c) }} />
-            <div className="kpis">
-              <Kpi label="Main valves recorded inoperable" value={fmt(stats.valves_on_mains_inop)} sub={`of ${fmt(stats.valves_on_mains)} on mains`} />
-              <Kpi label="Last inspected 5+ years ago" value={`${Math.round(stats.valves_on_mains_last_inspected_5y_plus_share * 100)}%`} sub="industry practice: every valve within 5 years" />
-              <Kpi label="Customers out, average break" value={`${stats.paper.expected_customers_per_break_with_downstream} → ${stats.real.expected_customers_per_break_with_downstream}`} sub="all valves work → City-recorded valve status; includes customers cut off downstream" />
-              <Kpi label="Fire hydrants out, average break" value={`${stats.paper.expected_hydrants_per_break} → ${stats.real.expected_hydrants_per_break}`} sub="hydrants on the shut-off pipes" />
-            </div>
+        {view === 'break' && !brk && (
+          <section className="intro">
+            <h2>Which valves decide who loses water?</h2>
+            <p className="lede">
+              Click any water main on the map, or search a street corner. You'll see the outage if every valve worked, with
+              the City's own valve records, and after the top {showcase?.repaired ?? 100} repairs ValveRank recommends.
+            </p>
+            {showcase && (
+              <div className="cases">
+                <h3>Real cases</h3>
+                {showcase.cases.map(c => (
+                  <button key={c.piece} onClick={() => goTo(c)}>{c.label}</button>
+                ))}
+              </div>
+            )}
           </section>
         )}
-        {!brk && repair && repair.valves.length > 0 && <Repair data={repair} onChange={showRepairs} />}
-        {!brk && <YearPanel repaired={showcase?.repaired} />}
-        {!brk && <History />}
-        {!brk && showcase && (
-          <section className="showcase">
-            <h2>What the top {showcase.repaired} repairs change</h2>
-            {showcase.cases.map(c => (
-              <button key={c.piece} onClick={() => goTo(c)}>{c.label}</button>
-            ))}
-          </section>
-        )}
-
-        {brk && paper && real && (
+        {view === 'break' && brk && paper && real && (
           <section className="break">
             <div className="break-head">
               <span className="dot" /> Break on a {brk.diameter ? `${brk.diameter}″ ` : ''}{brk.material ?? ''} main
@@ -467,6 +476,32 @@ export default function App() {
               </table>
             </details>
             <button className="reset" onClick={clearBreak}>Back to overview</button>
+          </section>
+        )}
+
+        {view === 'fix' && repair && repair.valves.length > 0 && <Repair data={repair} onChange={showRepairs} />}
+        {view === 'fix' && <YearPanel repaired={showcase?.repaired} />}
+        {view === 'evidence' && stats && (
+          <section className="evidence">
+            <h2>What the City's records say</h2>
+            <dl className="figures">
+              <div><dt>{fmt(stats.valves_on_mains_inop)}</dt><dd>valves on mains recorded inoperable, of {fmt(stats.valves_on_mains)}</dd></div>
+              <div><dt>{Math.round(stats.valves_on_mains_last_inspected_5y_plus_share * 100)}%</dt><dd>last inspected 5 or more years ago; practice is every 5 years</dd></div>
+              <div><dt>{stats.paper.expected_customers_per_break_with_downstream} → {stats.real.expected_customers_per_break_with_downstream}</dt><dd>customers out per average break, every valve working → City records</dd></div>
+              <div><dt>{stats.paper.expected_hydrants_per_break} → {stats.real.expected_hydrants_per_break}</dt><dd>fire hydrants out per average break</dd></div>
+            </dl>
+          </section>
+        )}
+        {view === 'evidence' && <History />}
+        {view === 'evidence' && (
+          <section className="limits">
+            <h2>Sources and limits</h2>
+            <ul>
+              <li>City of Houston public GIS: 290,959 mains, 166,362 valves, 62,540 hydrants, 544,011 customer accounts (snapshot June 2023).</li>
+              <li>Pressure: EPANET 2.2 model of the whole network, uncalibrated; it reproduces the 2020 Clinton Drive citywide pressure loss.</li>
+              <li>Break rates: 11,119 breaks a year (Houston Public Works FY2023) spread by pipe length and a per-size rate from 311 calls.</li>
+              <li>Customers are utility accounts, not people. Inoperable flags are the City's records; repairs after March 2023 are not public.</li>
+            </ul>
           </section>
         )}
 
@@ -520,15 +555,6 @@ function Scenarios({ paper, real, run, revealed, repaired }: { paper: Seg; real:
   )
 }
 
-function Kpi({ label, value, sub }: { label: string; value: string; sub: string }) {
-  return (
-    <div className="kpi">
-      <div className="kpi-value">{value}</div>
-      <div className="kpi-label">{label}</div>
-      <div className="kpi-sub">{sub}</div>
-    </div>
-  )
-}
 
 function Row({ label, a, b, show, sub }: { label: string; a: number; b: number; show: boolean; sub?: boolean }) {
   const worse = b > a
