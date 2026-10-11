@@ -1,0 +1,56 @@
+{
+ "control_valves_attrs.json": {
+  "bytes": 1141630,
+  "sha256": "7fa77a05d7eafe30",
+  "downloaded_utc": "2026-10-11T03:36:31+00:00",
+  "records": 4840
+ },
+ "customers.json": {
+  "bytes": 65414178,
+  "sha256": "67a584472411b522",
+  "downloaded_utc": "2026-10-10T20:56:31+00:00",
+  "records": 544011
+ },
+ "hydrants.json": {
+  "bytes": 10673566,
+  "sha256": "bb268a779a7ed564",
+  "downloaded_utc": "2026-10-10T20:55:14+00:00",
+  "records": 62540
+ },
+ "hydrants_attrs.json": {
+  "bytes": 10696350,
+  "sha256": "ad5abc4a29088730",
+  "downloaded_utc": "2026-10-11T03:36:45+00:00",
+  "records": 62540
+ },
+ "mains.json": {
+  "bytes": 91395424,
+  "sha256": "6cb710c34e02924b",
+  "downloaded_utc": "2026-10-10T20:56:07+00:00",
+  "records": 290959
+ },
+ "mains_attrs.json": {
+  "bytes": 64039839,
+  "sha256": "3bf59ad13ff87df0",
+  "downloaded_utc": "2026-10-11T03:36:25+00:00",
+  "records": 290959
+ },
+ "prs_attrs.json": {
+  "bytes": 21923,
+  "sha256": "1018b1cac8f4ebdd",
+  "downloaded_utc": "2026-10-11T03:35:35+00:00",
+  "records": 93
+ },
+ "valves.json": {
+  "bytes": 51091075,
+  "sha256": "ec98f7b8c26a44ae",
+  "downloaded_utc": "2026-10-10T20:55:40+00:00",
+  "records": 166362
+ },
+ "valves_attrs.json": {
+  "bytes": 34761124,
+  "sha256": "7e1989623c29ce78",
+  "downloaded_utc": "2026-10-11T03:36:44+00:00",
+  "records": 166362
+ }
+}
