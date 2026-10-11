@@ -9,6 +9,7 @@ data/build/batch.jsonl, one line per paper segment:
   uv run --project pipeline python pipeline/batch.py [workers] [limit]
 """
 import json
+import os
 import multiprocessing as mp
 import sys
 import time
@@ -17,7 +18,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
-OUT = ROOT / "data" / "build" / "batch.jsonl"
+OUT = Path(os.environ.get("H2O_BATCH_OUT", ROOT / "data" / "build" / "batch.jsonl"))
 E = None
 
 

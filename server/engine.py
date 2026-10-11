@@ -24,7 +24,8 @@ from wntr.epanet.toolkit import ENepanet
 
 ROOT = Path(__file__).resolve().parent.parent
 BUILD = ROOT / "data" / "build"
-INP = BUILD / "houston.inp"
+HYD = Path(os.environ.get("H2O_HYDRAULIC_DIR", BUILD))  # alternative hydraulic model (houston.inp + hydraulic_index.npz)
+INP = HYD / "houston.inp"
 REQUIRED_PSI = 20.0
 # gushing-phase impact = pressure lost vs baseline, not an absolute floor: the uncalibrated baseline is
 # weakest far from the plants (west Houston), so 'newly below 20 psi' lit up the wrong place (audit §10)
@@ -51,7 +52,7 @@ class Engine:
         t0 = time.time()
         N = pickle.load(open(BUILD / "network.pkl", "rb"))
         S = pickle.load(open(BUILD / "supply.pkl", "rb"))
-        H = np.load(BUILD / "hydraulic_index.npz")
+        H = np.load(HYD / "hydraulic_index.npz")
         self.N, self.S = N, S
         self.pieces, self.mains, self.valves, self.cut = N["pieces"], N["mains"], N["valves"], N["cut_valves"]
         P = len(self.pieces)
