@@ -25,7 +25,7 @@ TOP = 3000
 
 def main():
     rows = [json.loads(l) for l in open(ROOT / "data/build/batch.jsonl") if l.strip()]
-    rows = [r for r in rows if "error" not in r]
+    rows = list({r["seg"]: r for r in rows if "error" not in r}.values())  # one row per segment (resumed runs may repeat)
     N = pickle.load(open(ROOT / "data/build/network.pkl", "rb"))
     total_len = sum(p[4] for p in N["pieces"])
     covered_len = sum(r["length_m"] for r in rows)
