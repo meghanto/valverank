@@ -67,9 +67,11 @@ def nearest(lon: float, lat: float):
     lat0 = 29.76
     kx, ky = 111_320 * np.cos(np.radians(lat0)), 110_574
     p = np.array([(lon + 95.4) * kx, (lat - lat0) * ky])
+    # "the main at X and Y": the largest pipe with a node within 60 m, else the nearest node's largest pipe
+    near = ENGINE.tree.query_ball_point(p, 60.0)
     d, i = ENGINE.tree.query(p)
-    node = int(ENGINE.tree_ids[i])
-    ks = np.where((ENGINE.pa == node) | (ENGINE.pb == node))[0]
+    nodes = [int(ENGINE.tree_ids[j]) for j in near] or [int(ENGINE.tree_ids[i])]
+    ks = np.where(np.isin(ENGINE.pa, nodes) | np.isin(ENGINE.pb, nodes))[0]
     k = int(ks[np.argmax(ENGINE.diam[ks])]) if len(ks) else None
     return {"piece": k, "distance_m": round(float(d), 1)}
 
