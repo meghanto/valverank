@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import * as maplibregl from 'maplibre-gl'
 import type { GeoJSONSource, MapMouseEvent } from 'maplibre-gl'
 import 'maplibre-gl/dist/maplibre-gl.css'
+import { Timeline, type Phase } from './Timeline'
 import workerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?url'
 
 // MapLibre v6 loads its worker from a file next to the bundle; Vite doesn't
@@ -31,6 +32,7 @@ type ScenarioStats = {
   max_customers: number
 }
 type Break = {
+  k: number
   lngLat: [number, number]
   sp: number
   sr: number
@@ -86,6 +88,10 @@ export default function App() {
         },
       })
       map.addLayer({
+        id: 'pressure-hl', type: 'line', source: 'pipes', filter: ['in', ['get', 'k'], ['literal', []]],
+        paint: { 'line-color': '#ffb000', 'line-width': ['interpolate', ['linear'], ['zoom'], 11, 2, 16, 5], 'line-opacity': 0.9 },
+      })
+      map.addLayer({
         id: 'real-hl', type: 'line', source: 'pipes', filter: ['==', ['get', 'sr'], -1],
         paint: { 'line-color': '#ff4f32', 'line-width': ['interpolate', ['linear'], ['zoom'], 11, 2.5, 16, 6] },
       })
@@ -122,7 +128,7 @@ export default function App() {
       map.on('click', 'pipes', (e: MapMouseEvent & { features?: maplibregl.MapGeoJSONFeature[] }) => {
         const f = e.features?.[0]
         if (!f) return
-        const p = f.properties as { sp: number; sr: number; d: number | null; m: string | null; y: number | null }
+        const p = f.properties as { k: number; sp: number; sr: number; d: number | null; m: string | null; y: number | null }
         breakAt([e.lngLat.lng, e.lngLat.lat], p)
       })
     })
@@ -130,7 +136,14 @@ export default function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  function breakAt(lngLat: [number, number], p: { sp: number; sr: number; d: number | null; m: string | null; y: number | null }) {
+  function showPressure(pieces: number[], kind: Phase['phase'] | null) {
+    const map = mapRef.current
+    if (!map) return
+    // isolated-phase pieces are already drawn as the outage areas; pressure layer shows gushing phases
+    map.setFilter('pressure-hl', ['in', ['get', 'k'], ['literal', kind && kind !== 'isolated' ? pieces : []]])
+  }
+
+  function breakAt(lngLat: [number, number], p: { k: number; sp: number; sr: number; d: number | null; m: string | null; y: number | null }) {
     const map = mapRef.current
     const segs = segsRef.current
     if (!map || !segs) return
@@ -145,7 +158,8 @@ export default function App() {
     map.setFilter('valves-close', ['in', ['get', 'id'], ['literal', paper[4]]])
     map.setFilter('valves-dead', ['in', ['get', 'id'], ['literal', []]])
     map.setFilter('hydrants-hl', ['==', ['get', 'sp'], p.sp])
-    const b: Break = { lngLat, sp: p.sp, sr: p.sr, diameter: p.d, material: p.m, year: p.y, stage: 'paper' }
+    map.setFilter('pressure-hl', ['in', ['get', 'k'], ['literal', []]])
+    const b: Break = { k: p.k, lngLat, sp: p.sp, sr: p.sr, diameter: p.d, material: p.m, year: p.y, stage: 'paper' }
     setBrk(b)
     timer.current = window.setTimeout(() => {
       const real = segs.real[p.sr]
@@ -221,7 +235,8 @@ export default function App() {
                 <p className="ok">Every valve around this break is recorded as working.</p>
               )
             )}
-            <button className="reset" onClick={() => setBrk(null)}>Back to overview</button>
+            {brk.stage === 'real' && <Timeline piece={brk.k} onShow={showPressure} />}
+            <button className="reset" onClick={() => { setBrk(null); showPressure([], null) }}>Back to overview</button>
           </section>
         )}
 
@@ -235,6 +250,7 @@ export default function App() {
         <span><i style={{ background: '#ff4f32' }} /> outage with recorded broken valves</span>
         <span><i className="round" style={{ background: '#f5f3ee' }} /> valves crews close</span>
         <span><b style={{ color: '#ff4f32' }}>✕</b> recorded inoperable</span>
+        <span><i style={{ background: '#ffb000' }} /> below 20 psi while gushing</span>
       </div>
     </div>
   )
