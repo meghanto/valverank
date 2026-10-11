@@ -22,7 +22,9 @@ def _client():
     global _CLIENT
     if _CLIENT is None:
         from google import genai
-        _CLIENT = genai.Client(api_key=os.environ["GEMINI_API_KEY"])
+        # 20 s per attempt: an occasional Gemini call stalls 30+ s; the retry is usually fast
+        _CLIENT = genai.Client(api_key=os.environ["GEMINI_API_KEY"],
+                               http_options={"timeout": 20_000, "retry_options": {"attempts": 2}})
     return _CLIENT
 
 
@@ -32,8 +34,11 @@ def parse_question(q: str) -> dict:
         '{"place": "<street intersection or address in Houston, TX>", "opening": <0.01-1 or null>, '
         '"t_first": <minutes until crews close the first valves, or null>, "t_dead": <extra minutes when a valve is dead, or null>, '
         '"t_repair": <minutes until repaired, or null>}. Use null for anything not stated. Question: ' + q)
-    r = _client().models.generate_content(model=MODEL, contents=prompt,
-                                          config={"response_mime_type": "application/json"})
+    cfg = {"response_mime_type": "application/json"}
+    try:  # extraction needs little reasoning; default thinking took 11-38 s
+        r = _client().models.generate_content(model=MODEL, contents=prompt, config=cfg | {"thinking_config": {"thinking_level": "minimal"}})
+    except Exception:
+        r = _client().models.generate_content(model=MODEL, contents=prompt, config=cfg | {"thinking_config": {"thinking_level": "low"}})
     out = json.loads(r.text)
     if not out.get("place"):
         raise ValueError("no place in question")
