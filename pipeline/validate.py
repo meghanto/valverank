@@ -6,6 +6,7 @@ real segment of each candidate. Because geocodes are approximate, results are
 given as the range over candidates, plus the closest matching pipe.
 """
 import csv
+import re
 import math
 import pickle
 from pathlib import Path
@@ -41,8 +42,8 @@ def main():
         p = xy(float(ev["lon"]), float(ev["lat"]))
         d = np.hypot(*(mids - p).T)
         near = np.where(d <= RADIUS_M)[0]
-        want = float(ev["diameter_in"]) if ev["diameter_in"] else None
-        match = near[diam[near] == want] if want else near
+        want = [float(x) for x in re.findall(r"\d+(?:\.\d+)?", ev["diameter_in"])]  # e.g. "8 or 12"
+        match = near[np.isin(diam[near], want)] if want else near
         cand = match if len(match) else near
         if not len(cand):
             rows.append((ev, None))

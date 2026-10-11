@@ -15,3 +15,7 @@ Customers = City utility accounts within 120 m of the segment's mains, plus acco
 | NB10 | 2025-01-26 | Sabine St near townhomes, First Ward (cr | — | 8 | 10 (diam match) | 9 → 9 (8″, 14 m) | 7–21 | 7–21 |
 | NB11 | 2025-08-24 | 12434 Wellington Park Dr, ZIP 77072 (Ali | — | — | 2 | 178 → 208 (8″, 10 m) | 178–178 | 208–208 |
 | NB12 | 2026-07-24 | Richmond Ave near Southwest Fwy, west of | — | — | 18 | 3 → 3 (12″, 4 m) | 0–26 | 0–26 |
+| NB13 | 2014-10-14 | Leaky valve on a transmission line, 2300 | — | — | 65 | 50 → 197 (8″, 4 m) | 0–61 | 0–197 |
+| NB14 | 2015-09-17 | S Braeswood Blvd at Stella Link Rd, Meye | — | — | 25 | 6 → 8 (12″, 20 m) | 1–12 | 6–18 |
+| NB15 | 2016-02-19 | Allen Pkwy near Taft St, Fourth Ward/Mon | — | 8 or 12 | 17 (diam match) | 1 → 1 (12″, 6 m) | 0–12 | 0–12 |
+| NB16 | 2024-02-08 | PLANNED overnight outage, Memorial Heigh | — | — | 26 | 50 → 174 (8″, 22 m) | 2–97 | 2–174 |
