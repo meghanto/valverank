@@ -4,10 +4,12 @@ import type { GeoJSONSource, MapMouseEvent } from 'maplibre-gl'
 import 'maplibre-gl/dist/maplibre-gl.css'
 import { Timeline, type Phase } from './Timeline'
 import workerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?url'
+import { Protocol } from 'pmtiles'
 
 // MapLibre v6 loads its worker from a file next to the bundle; Vite doesn't
 // copy it, so emit it as an asset and point MapLibre at it.
 maplibregl.setWorkerUrl(workerUrl)
+maplibregl.addProtocol('pmtiles', new Protocol().tile)
 
 const DATA = `${import.meta.env.BASE_URL}data/`
 const BASEMAP = 'https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json'
@@ -58,10 +60,10 @@ export default function App() {
   useEffect(() => {
     fetch(`${DATA}stats.json`).then(r => r.json()).then(setStats)
     fetch(`${DATA}segments.json`).then(r => r.json()).then(s => (segsRef.current = s))
-    fetch(`${DATA}valves.geojson`)
+    fetch(`${DATA}valves_inop.json`)
       .then(r => r.json())
-      .then(fc => {
-        for (const f of fc.features) valveIndex.current.set(f.properties.id, f.properties)
+      .then((o: Record<string, [string | null, number | null, number | null]>) => {
+        for (const [id, [r, cy, d]] of Object.entries(o)) valveIndex.current.set(+id, { id: +id, c: 'INOP', r, cy, d, iy: null })
       })
 
     const map = new maplibregl.Map({
@@ -75,45 +77,44 @@ export default function App() {
     map.addControl(new maplibregl.NavigationControl({ showCompass: false }), 'top-right')
 
     map.on('load', () => {
-      map.addSource('pipes', { type: 'geojson', data: `${DATA}pipes.geojson` })
-      map.addSource('valves', { type: 'geojson', data: `${DATA}valves.geojson` })
-      map.addSource('hydrants', { type: 'geojson', data: `${DATA}hydrants.geojson` })
+      // whole City network as one PMTiles file (pipes, valves, hydrants layers), fetched by range requests
+      map.addSource('city', { type: 'vector', url: `pmtiles://${new URL(`${DATA}city.pmtiles`, location.href).href}` })
       map.addSource('break', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } })
 
       map.addLayer({
-        id: 'pipes', type: 'line', source: 'pipes',
+        id: 'pipes', type: 'line', source: 'city', 'source-layer': 'pipes',
         paint: {
           'line-color': ['case', ['<', ['coalesce', ['get', 'y'], 2000], 1970], '#6b7c93', '#3d4a5c'],
           'line-width': ['interpolate', ['linear'], ['zoom'], 11, 0.6, 16, 2.5],
         },
       })
       map.addLayer({
-        id: 'pressure-hl', type: 'line', source: 'pipes', filter: ['in', ['get', 'k'], ['literal', []]],
+        id: 'pressure-hl', type: 'line', source: 'city', 'source-layer': 'pipes', filter: ['in', ['get', 'k'], ['literal', []]],
         paint: { 'line-color': '#ffb000', 'line-width': ['interpolate', ['linear'], ['zoom'], 11, 2, 16, 5], 'line-opacity': 0.9 },
       })
       map.addLayer({
-        id: 'real-hl', type: 'line', source: 'pipes', filter: ['==', ['get', 'sr'], -1],
+        id: 'real-hl', type: 'line', source: 'city', 'source-layer': 'pipes', filter: ['==', ['get', 'sr'], -1],
         paint: { 'line-color': '#ff4f32', 'line-width': ['interpolate', ['linear'], ['zoom'], 11, 2.5, 16, 6] },
       })
       map.addLayer({
-        id: 'paper-hl', type: 'line', source: 'pipes', filter: ['==', ['get', 'sp'], -1],
+        id: 'paper-hl', type: 'line', source: 'city', 'source-layer': 'pipes', filter: ['==', ['get', 'sp'], -1],
         paint: { 'line-color': '#4fb3ff', 'line-width': ['interpolate', ['linear'], ['zoom'], 11, 3, 16, 7] },
       })
       map.addLayer({
-        id: 'hydrants-hl', type: 'circle', source: 'hydrants', filter: ['==', ['get', 'sr'], -1],
+        id: 'hydrants-hl', type: 'circle', source: 'city', 'source-layer': 'hydrants', filter: ['==', ['get', 'sr'], -1],
         paint: { 'circle-radius': 4, 'circle-color': '#ffd166', 'circle-stroke-color': '#111318', 'circle-stroke-width': 1 },
       })
       map.addLayer({
-        id: 'valves-inop', type: 'circle', source: 'valves', filter: ['==', ['get', 'c'], 'INOP'],
-        minzoom: 12,
+        id: 'valves-inop', type: 'circle', source: 'city', 'source-layer': 'valves', filter: ['==', ['get', 'c'], 'INOP'],
+        minzoom: 10,
         paint: { 'circle-radius': ['interpolate', ['linear'], ['zoom'], 12, 1.5, 16, 4], 'circle-color': '#ff4f32', 'circle-opacity': 0.55 },
       })
       map.addLayer({
-        id: 'valves-close', type: 'circle', source: 'valves', filter: ['in', ['get', 'id'], ['literal', []]],
+        id: 'valves-close', type: 'circle', source: 'city', 'source-layer': 'valves', filter: ['in', ['get', 'id'], ['literal', []]],
         paint: { 'circle-radius': 6, 'circle-color': '#f5f3ee', 'circle-stroke-color': '#111318', 'circle-stroke-width': 2 },
       })
       map.addLayer({
-        id: 'valves-dead', type: 'symbol', source: 'valves', filter: ['in', ['get', 'id'], ['literal', []]],
+        id: 'valves-dead', type: 'symbol', source: 'city', 'source-layer': 'valves', filter: ['in', ['get', 'id'], ['literal', []]],
         layout: { 'text-field': '✕', 'text-size': 18, 'text-allow-overlap': true },
         paint: { 'text-color': '#ff4f32', 'text-halo-color': '#111318', 'text-halo-width': 2 },
       })

@@ -15,7 +15,8 @@ ROOT = Path(__file__).resolve().parent.parent
 BUILD, OUT = ROOT / "data" / "build", ROOT / "web" / "public" / "data"
 
 # NW + central Houston: includes Tidwell & Antoine (29.857, -95.495), Heights, First Ward
-BBOX = (-95.56, 29.73, -95.33, 29.90)
+BBOX = (-96.2, 29.3, -94.8, 30.3)  # whole City water service area
+TILES = ROOT / "data" / "build" / "tiles"  # citywide GeoJSON -> tippecanoe -> web/public/data/city.pmtiles
 NOW = dt.datetime(2026, 10, 10, tzinfo=dt.UTC)
 
 
@@ -38,6 +39,7 @@ def main():
     cut_valves = N["cut_valves"]
     L = np.array([p[4] for p in pieces])
     OUT.mkdir(parents=True, exist_ok=True)
+    TILES.mkdir(parents=True, exist_ok=True)
 
     # node -> pieces
     inc = defaultdict(list)
@@ -126,7 +128,7 @@ def main():
                 "y": year(a.get("INSERVICEDATE")),
             },
         })
-    (OUT / "pipes.geojson").write_text(json.dumps({"type": "FeatureCollection", "features": feats}, separators=(",", ":")))
+    (TILES / "pipes.geojson").write_text(json.dumps({"type": "FeatureCollection", "features": feats}, separators=(",", ":")))
 
     # segments.json: per compact id -> [customers, hydrants, length_m, gallons, [valve ids], [dead valve ids],
     #                                   downstream customers, downstream hydrants]
@@ -167,7 +169,11 @@ def main():
                 "iy": year(a.get("INSERVICEDATE")),
             },
         })
-    (OUT / "valves.geojson").write_text(json.dumps({"type": "FeatureCollection", "features": vf}, separators=(",", ":")))
+    # compact lookup for the side panel: inoperable valves on mains, id -> [reason, last checked year, diameter]
+    (OUT / "valves_inop.json").write_text(json.dumps(
+        {f["properties"]["id"]: [f["properties"]["r"], f["properties"]["cy"], f["properties"]["d"]]
+         for f in vf if f["properties"]["c"] == "INOP"}, separators=(",", ":")))
+    (TILES / "valves.geojson").write_text(json.dumps({"type": "FeatureCollection", "features": vf}, separators=(",", ":")))
 
     hf = []
     for i, h in enumerate(hyd):
@@ -176,7 +182,7 @@ def main():
         if g and in_bbox(g["x"], g["y"]) and k >= 0 and seg["paper"][k] in remap["paper"]:
             hf.append({"type": "Feature", "geometry": {"type": "Point", "coordinates": r5([g["x"], g["y"]])},
                        "properties": {"sp": remap["paper"][seg["paper"][k]], "sr": remap["real"][seg["real"][k]]}})
-    (OUT / "hydrants.geojson").write_text(json.dumps({"type": "FeatureCollection", "features": hf}, separators=(",", ":")))
+    (TILES / "hydrants.geojson").write_text(json.dumps({"type": "FeatureCollection", "features": hf}, separators=(",", ":")))
 
     # ---------- citywide stats ----------
     w = L / L.sum()
@@ -208,6 +214,13 @@ def main():
     st["demo_bbox"] = BBOX
     (OUT / "stats.json").write_text(json.dumps(st, indent=1))
     print(json.dumps(st, indent=1))
+    import subprocess
+    subprocess.run(["tippecanoe", "-o", str(OUT / "city.pmtiles"), "--force", "-Z10", "-z15",
+                    "--drop-densest-as-needed", "--extend-zooms-if-still-dropping",
+                    "-L", f"pipes:{TILES / 'pipes.geojson'}", "-L", f"valves:{TILES / 'valves.geojson'}",
+                    "-L", f"hydrants:{TILES / 'hydrants.geojson'}", "--quiet"], check=True)
+    for f in ("pipes.geojson", "valves.geojson", "hydrants.geojson"):
+        (OUT / f).unlink(missing_ok=True)
     for f in OUT.iterdir():
         print(f.name, f"{f.stat().st_size/1e6:.1f} MB")
 

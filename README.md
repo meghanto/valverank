@@ -39,6 +39,18 @@ uv run --project pipeline python pipeline/export.py    # writes web/public/data
 cd web && npm install && npm run dev
 ```
 
+## Machine-checked guarantees (Bend 2)
+
+`proofs/` states 13 laws about the model's specification and proves them in [Bend 2](https://bend-lang.com). The checker and its Lean-backed `--verdict` mode both accept them, with no assumed axioms:
+- **A dead valve can never shrink an outage.** For any network, valves and customer weights, the paper segment is contained in the real one, so real customers ≥ paper customers (`customers_mono`).
+- **Supply loss is sound.** Removing a segment never creates a path to a water source (`supply_mono`).
+
+What is *not* proved: the Python implementation itself, union-find ≡ closure, Tarjan's algorithm, and geometry/snapping. Those are covered by tests (`pipeline/test_supply.py`, brute force) instead. See `proofs/README.md`.
+
+```bash
+cd proofs && bend PROOF.bend --verdict   # ALL PROOFS CHECK
+```
+
 ## Limitations (read before quoting numbers)
 
 - **Data snapshot.** The City's public water GIS was last edited 2023-06-05, and valve condition records end in March 2023. Pipe networks change slowly (about 0.3% of lines replaced per year). Inoperable flags are a floor: dead valves don't fix themselves.

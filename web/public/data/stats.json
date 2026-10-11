@@ -28,9 +28,9 @@
  "valves_on_mains_last_inspected_5y_plus_share": 0.776,
  "data_snapshot": "City of Houston public GIS, last edited 2023-06-05",
  "demo_bbox": [
-  -95.56,
-  29.73,
-  -95.33,
-  29.9
+  -96.2,
+  29.3,
+  -94.8,
+  30.3
  ]
 }
