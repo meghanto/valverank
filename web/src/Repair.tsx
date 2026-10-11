@@ -20,6 +20,9 @@ export function Repair({ data, onChange }: { data: RepairData; onChange: (n: num
   const cost = data.dead_valve_cost_per_year
   const after = Math.max(cost - saved, 0)
   const d = data.by_class.distribution
+  const t = data.by_class.transmission
+  const costD = d.real - d.paper
+  const costT = t.real - t.paper
   return (
     <section className="repair">
       <h2>Repair planner</h2>
@@ -28,6 +31,10 @@ export function Repair({ data, onChange }: { data: RepairData; onChange: (n: num
         without water into <b className="real">{fmt(d.real)}</b>. Citywide they cost an estimated <b className="real">{fmt(cost)}</b> customer-hours
         a year. Pick how many to fix; we choose the ones that matter most.
       </p>
+      <ul className="split">
+        <li><b>{fmt(costD)}</b> longer shut-offs on neighborhood mains <span>City valve records + network connectivity</span></li>
+        <li><b>{fmt(costT)}</b> extra gushing on large mains (24 in+) <span>uncalibrated pressure model</span></li>
+      </ul>
       <label className="slider">
         <span>Valves repaired<b>{fmt(n)}</b></span>
         <input type="range" min={0} max={max} step={max > 500 ? 10 : 1} value={n} onChange={e => setN(Number(e.target.value))} />
@@ -38,10 +45,8 @@ export function Repair({ data, onChange }: { data: RepairData; onChange: (n: num
       </div>
       <p className="fine">
         One simulated break per isolation segment ({Math.round(data.coverage_share_of_pipe_length * 100)}% of pipe length), weighted by
-        pipe length × {fmt(data.breaks_per_year)} breaks/yr (HPW FY2023), default slider assumptions. Transmission mains (24 in+) are
-        left out of the first sentence: they add {fmt(data.by_class.transmission.paper)}–{fmt(data.by_class.transmission.real)} customer-hours,
-        almost all modeled low pressure while gushing, which no valve repair changes.
-        Green dots on the map are the chosen valves.
+        pipe length × {fmt(data.breaks_per_year)} breaks/yr (HPW FY2023), default slider assumptions. Large mains also cost {fmt(t.paper)} customer-hours a year
+        even if every valve worked (low pressure while gushing; no valve repair changes that). Green dots on the map are the chosen valves.
       </p>
     </section>
   )

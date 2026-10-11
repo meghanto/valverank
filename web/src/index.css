@@ -76,3 +76,9 @@ footer { margin-top: auto; font-size: 11px; color: var(--muted); line-height: 1.
 .repair h2 { font-size: 16px; margin: 0; }
 .repair .lede b.real { color: var(--real); }
 .ch span.fixed { color: #3ddc97; }
+
+.repair .split { list-style: none; margin: 4px 0 14px; padding: 0; display: grid; gap: 6px; }
+.repair .split li { font-size: 13px; line-height: 1.35; border-left: 3px solid #ff4f32; padding-left: 8px; }
+.repair .split li + li { border-left-color: #ffb000; }
+.repair .split b { font-variant-numeric: tabular-nums; margin-right: 4px; }
+.repair .split span { display: block; font-size: 11px; opacity: 0.6; }

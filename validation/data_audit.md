@@ -291,3 +291,13 @@ Change (`pipeline/hydraulic.py`, new flags; defaults byte-identical):
 - Assumptions added: 35 psi dispatch target, 16 gpm minimum per source, 1.5 headroom, caps fixed during a break.
 
 **Batch provenance after B.** Transmission mains (≥ 24″, 1,882 segments) are re-run on model B with the 15 psi metric (`data/build/batch_b_trans.jsonl`; `repair.py` merges it). Distribution rows keep the earlier run (model A, old metric, timing-corrected). Sensitivity, from 33,500 distribution segments re-run on model A with the new metric (`batch_a.jsonl`): paper customer-hours +4.7%, real +4.1%, real/paper ratio 2.855 → 2.839. The headline ratio is insensitive to the pressure metric; absolute distribution customer-hours may be ~4–5% low.
+
+**Final merged batch (06:25).** Transmission re-run on model B: 1,882 segments, 39.5 min, 0 errors.
+
+| Class | Breaks/yr | Paper c-h/yr | Real c-h/yr | Dead-valve cost |
+|---|---|---|---|---|
+| Distribution (< 24″, earlier run) | 10,335 | 1,031,000 | 2,494,514 | 1,463,514 |
+| Transmission (≥ 24″, model B, 15 psi metric) | 784 | 44,956,696 | 47,241,796 | 2,285,100 |
+| Total | 11,119 | 45,987,695 | 49,736,309 | 3,748,614 |
+
+Transmission totals rose from 12.4 M to 45.0 M because the 15 psi-drop metric counts far more customers than "newly below 20 psi" (e.g. 54″ piece 10256: 6,726 → 174,792). Repair planner on the merged rows: top 10 / 50 / 100 / 500 / 1,000 / 3,000 recover 33% / 55% / 61% / 76% / 82% / 92%; the top of the list is dominated by valves on large mains, so it rests on the pressure model. The app shows the split (robust shut-off part vs model-based gushing part).

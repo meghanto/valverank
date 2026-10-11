@@ -18,10 +18,10 @@ Shutoff runs this on Houston's real water network (290,959 pipe segments, 166,36
 | | Every valve works | City-recorded valve status |
 |---|---|---|
 | Neighborhood mains (< 24″, 10,335 breaks/yr) | 1.03 M | **2.49 M** |
-| Citywide dead-valve cost | — | **1.82 M** |
-| Repair the planner's top 100 / 500 / 3,000 dead valves | | recovers 32% / 54% / 83% of that cost |
+| Citywide dead-valve cost | — | **3.75 M** = 1.46 M longer shut-offs (neighborhood mains) + 2.29 M extra gushing (large mains, pressure model) |
+| Repair the planner's top 10 / 100 / 500 / 3,000 dead valves | | recovers 33% / 61% / 76% / 92% of that cost |
 
-Transmission mains (≥ 24″, 784 breaks/yr) add 12.4–12.7 M, almost all of it low pressure while the break gushes. That figure depends on the assumed break size and response time, and no valve repair changes it, so it is reported separately.
+Transmission mains (≥ 24″, 784 breaks/yr) cost 45.0 M customer-hours a year even if every valve worked: customers losing ≥ 15 psi while the break gushes. That figure comes from the uncalibrated pressure model and the assumed break size and response time, and no valve repair changes it, so it is reported separately. Their dead valves add 2.29 M (gushing lasts longer), which is included in the dead-valve cost above and labelled as model-based in the app.
 
 78% of valves on mains were last inspected five or more years ago (industry guidance: exercise every valve within five years).
 
