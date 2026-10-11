@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 
 export const API = (import.meta.env.VITE_API_URL as string | undefined) ?? 'http://localhost:8787'
 
-export type Phase = { phase: 'gush' | 'gush_dead' | 'isolated'; minutes: number; customers: number; hydrants: number; pieces: number[] }
+export type Phase = { phase: 'gush' | 'gush_dead' | 'isolated'; minutes: number; customers: number; hydrants: number; pieces: number[]; pending?: boolean }
 
 /** Server sends large piece lists as a base64 bitset over all pieces (server/codec.py). */
 type Wire = number[] | { bits: string }
@@ -28,6 +28,7 @@ export type Scenario = { phases: Phase[]; customer_hours: number; segment_custom
 export type Run = {
   piece: number; diameter: number; exact: boolean; dead_valves: number[]; solve_ms: number; cached?: boolean
   params: Params; paper: Scenario; real: Scenario
+  partial?: boolean  // stage=outage: shut-off phases only, gushing phases pending the pressure solve
   fixed?: Scenario; repaired_valves?: number[]  // City records after the planner's top repairs (pipeline/fixed.py)
 }
 export type Params = { opening: number; t_first: number; t_dead: number; t_repair: number }
@@ -53,17 +54,23 @@ export function Timeline({ piece, onShow, onFixed, repaired, initial }: {
   const [busy, setBusy] = useState(false)
   const [sel, setSel] = useState<number>(-1)
   const debounce = useRef<number | undefined>(undefined)
+  const req = useRef(0)
 
   useEffect(() => {
     window.clearTimeout(debounce.current)
     debounce.current = window.setTimeout(() => {
       setBusy(true)
+      const id = ++req.current
+      let full = false
       const q = new URLSearchParams(Object.entries(params).map(([k, v]) => [k, String(v)]))
-      fetch(`${API}/break/${piece}?${q}`)
+      const get = (stage: string) => fetch(`${API}/break/${piece}?${q}&stage=${stage}`)
         .then(r => (r.ok ? r.json() : Promise.reject(new Error(`HTTP ${r.status}`))))
-        .then((r: Run) => { setRun(decode(r)); setErr(null); setSel(-1) })
-        .catch(e => setErr(String(e.message ?? e)))
-        .finally(() => setBusy(false))
+      // shut-off outage needs connectivity only (milliseconds): show it while the pressure solve runs
+      get('outage').then((r: Run) => { if (id === req.current && !full) { setRun(decode(r)); setErr(null) } }).catch(() => {})
+      get('full')
+        .then((r: Run) => { if (id === req.current) { full = true; setRun(decode(r)); setErr(null); setSel(-1) } })
+        .catch(e => { if (id === req.current) setErr(String(e.message ?? e)) })
+        .finally(() => { if (id === req.current) setBusy(false) })
     }, 250)
     return () => window.clearTimeout(debounce.current)
   }, [piece, params])
@@ -86,6 +93,7 @@ export function Timeline({ piece, onShow, onFixed, repaired, initial }: {
   const extra = run.real.customer_hours - run.paper.customer_hours
   return (
     <div className={`timeline ${busy ? 'busy' : ''}`}>
+      {run.partial && <p className="pending-note">Shut-off outage shown (network only). Solving pressure for the gushing phases…</p>}
       <div className="ch">
         <div><span className="paper">{fmt(run.paper.customer_hours)}</span><small>customer-hours without water if every valve worked</small></div>
         <div><span className="real">{fmt(run.real.customer_hours)}</span><small>with the City's valve records{extra > 0 ? ` (+${fmt(extra)})` : ''}</small></div>
@@ -101,12 +109,12 @@ export function Timeline({ piece, onShow, onFixed, repaired, initial }: {
             {run[s]!.phases.map((p, i) => (
               <button
                 key={i}
-                className={`seg ${p.phase} ${s === 'real' && sel === i ? 'sel' : ''}`}
+                className={`seg ${p.phase} ${s === 'real' && sel === i ? 'sel' : ''} ${p.pending ? 'pending' : ''}`}
                 style={{ flexGrow: Math.max(p.minutes, 1) / total }}
                 title={`${LABEL[p.phase]}: ${p.minutes} min, ${fmt(p.customers)} customers`}
                 onClick={() => { if (s === 'real') setSel(i); else onShow(p.pieces, p.phase) }}
               >
-                <span>{fmt(p.customers)}</span>
+                <span>{p.pending ? '…' : fmt(p.customers)}</span>
               </button>
             ))}
           </div>

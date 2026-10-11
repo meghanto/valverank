@@ -50,13 +50,16 @@ def health():
 
 
 @app.get("/break/{piece}")
-def brk(piece: int, opening: float = 0.25, t_first: int = 60, t_dead: int = 90, t_repair: int = 360, exact: bool = False):
+def brk(piece: int, opening: float = 0.25, t_first: int = 60, t_dead: int = 90, t_repair: int = 360, exact: bool = False,
+        stage: str = "full"):
     if not 0 <= piece < len(ENGINE.pieces):
         raise HTTPException(404, "no such pipe piece")
     if not (0.01 <= opening <= 1.0 and 0 <= t_first <= 1440 and 0 <= t_dead <= 1440 and 0 <= t_repair <= 4320):
         raise HTTPException(422, "parameter out of range")
     key = run_key(ENGINE.version, piece, opening, t_first, t_dead, t_repair, exact)
     hit = disk_get(key) or store.get(key)
+    if stage == "outage" and not hit:  # shut-off part only: connectivity, milliseconds, not cached
+        return encode(ENGINE.run(piece, opening, t_first, t_dead, t_repair, exact, pressure=False), len(ENGINE.pieces)) | {"cached": False}
     if hit:
         return hit | {"cached": True}
     r = encode(ENGINE.run(piece, opening, t_first, t_dead, t_repair, exact), len(ENGINE.pieces))

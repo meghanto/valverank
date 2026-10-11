@@ -31,7 +31,7 @@ REQUIRED_PSI = 20.0
 # gushing-phase impact = pressure lost vs baseline, not an absolute floor: the uncalibrated baseline is
 # weakest far from the plants (west Houston), so 'newly below 20 psi' lit up the wrong place (audit §10)
 DROP_PSI = 15.0
-ENGINE_REV = "3"  # bump when run() logic changes (part of the cache version)
+ENGINE_REV = "3"  # bump when run() logic changes results (part of the cache version); pressure=False only adds a mode
 # areas the 4 km window can't solve: Kingwood is fed by its own capped sources and ~10 boundary pipes,
 # so pinning the window boundary at baseline head hides a 40+ psi drop (audit §13). Full solve there.
 EXACT_BOXES = [(-95.30, 29.98, -95.10, 30.15)]  # lon0, lat0, lon1, lat1
@@ -294,7 +294,8 @@ class Engine:
         return np.where(m[self.pa] | m[self.pb])[0].tolist()
 
     # ------------------------------------------------------------------ public
-    def run(self, k, opening=0.25, t_first=60, t_dead=90, t_repair=360, exact=False):
+    def run(self, k, opening=0.25, t_first=60, t_dead=90, t_repair=360, exact=False, pressure=True):
+        """pressure=False: connectivity only (milliseconds); gushing phases come back with pending=True."""
         t0 = time.time()
         k = int(k)
         lon, lat = self.pieces[k][3][0]
@@ -321,7 +322,7 @@ class Engine:
         rings = {s: ring(s) for s in self.scens if s != "paper"}
         ring_working, ring_dead = rings["real"]
 
-        gush = self._gush_out(k, [], emit, exact)
+        gush = self._gush_out(k, [], emit, exact) if pressure else None
         result = dict(piece=k, diameter=float(self.diam[k]), exact=bool(exact), dead_valves=ring_dead,
                       repaired_valves=sorted(set(ring_dead) & FIXED_IDS),
                       params=dict(opening=opening, t_first=t_first, t_dead=t_dead, t_repair=t_repair))
@@ -330,16 +331,19 @@ class Engine:
             seg_pieces = self.members[s][cs[s]]
             down = self._downstream(s, cs[s])
             iso_pieces = list(seg_pieces) + [q for d in down for q in self.members[s][d]]
-            phases = [("gush", t_first, self._pieces_of_junctions(gush))]
+            phases = [("gush", t_first, self._pieces_of_junctions(gush) if pressure else None)]
             if s != "paper" and rings[s][1]:
                 key = tuple(sorted(rings[s][0]))
                 if key not in gd_cache:
-                    gd_cache[key] = self._pieces_of_junctions(self._gush_out(k, rings[s][0], emit, exact))
+                    gd_cache[key] = self._pieces_of_junctions(self._gush_out(k, rings[s][0], emit, exact)) if pressure else None
                 phases.append(("gush_dead", t_dead, gd_cache[key]))
             # repair starts once the break is isolated, so a dead valve delays it by t_dead
             phases.append(("isolated", t_repair, iso_pieces))
             rows, ch = [], 0.0
             for name, minutes, pcs in phases:
+                if pcs is None:  # pressure not solved yet
+                    rows.append(dict(phase=name, minutes=minutes, customers=0, hydrants=0, pieces=[], pending=True))
+                    continue
                 c = float(self.cust_piece[pcs].sum()) if pcs else 0.0
                 ch += c * minutes / 60
                 rows.append(dict(phase=name, minutes=minutes, customers=round(c),
@@ -347,6 +351,7 @@ class Engine:
             result[s] = dict(phases=rows, customer_hours=round(ch),
                              segment_customers=round(float(self.cust_piece[seg_pieces].sum())),
                              downstream_customers=round(float(sum(self.cust_piece[self.members[s][d]].sum() for d in down))))
+        result["partial"] = not pressure
         result["solve_ms"] = round((time.time() - t0) * 1000)
         return result
 
