@@ -23,9 +23,20 @@ BREAKS_PER_YEAR = 11_119   # HPW FY2023 "water main breaks" (likely includes lea
 TOP = 3000
 
 
+def fix_timing(r, t_first=60, t_dead=90, t_repair=360):
+    """Rows written before v2 shortened the real isolated phase to t_repair - t_dead.
+    Customer counts are integers, so the isolated count is recovered exactly from the totals."""
+    if r.get("v", 1) >= 2 or not r["dead"]:
+        return r
+    rest = (r["real_ch"] - r["gush"] * t_first / 60 - r["gush_dead"] * t_dead / 60)
+    iso = round(rest / ((t_repair - t_dead) / 60))
+    return dict(r, real_ch=round(r["gush"] * t_first / 60 + r["gush_dead"] * t_dead / 60 + iso * t_repair / 60), v=2)
+
+
 def main():
     rows = [json.loads(l) for l in open(ROOT / "data/build/batch.jsonl") if l.strip()]
     rows = list({r["seg"]: r for r in rows if "error" not in r}.values())  # one row per segment (resumed runs may repeat)
+    rows = [fix_timing(r) for r in rows]
     N = pickle.load(open(ROOT / "data/build/network.pkl", "rb"))
     total_len = sum(p[4] for p in N["pieces"])
     covered_len = sum(r["length_m"] for r in rows)

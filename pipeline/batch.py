@@ -36,7 +36,7 @@ def one(task):
     ph = {p["phase"]: p["customers"] for p in r["real"]["phases"]}
     return {"seg": seg, "piece": k, "length_m": round(length, 1), "paper_ch": r["paper"]["customer_hours"],
             "real_ch": r["real"]["customer_hours"], "dead": r["dead_valves"], "gush": ph.get("gush", 0),
-            "gush_dead": ph.get("gush_dead", 0), "exact": r["exact"], "ms": r["solve_ms"]}
+            "gush_dead": ph.get("gush_dead", 0), "exact": r["exact"], "ms": r["solve_ms"], "v": 2}
 
 
 def main():

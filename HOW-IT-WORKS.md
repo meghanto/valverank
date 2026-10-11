@@ -42,8 +42,8 @@ Fewer segments means bigger ones: dead valves merge neighboring segments.
 
 ## Why it matters (the pitch number)
 Every isolation segment broken once, weighted by pipe length × 11,119 breaks/yr:
-- Neighborhood mains: dead valves **double** customer-hours without water, 1.03 M → 2.02 M a year.
-- Citywide dead-valve cost: **1.32 M customer-hours a year**. Repairing the planner's top 500 dead valves recovers 59%; top 3,000 recovers 87%.
+- Neighborhood mains: dead valves multiply customer-hours without water by **2.4**, 1.03 M → 2.49 M a year.
+- Citywide dead-valve cost: **1.82 M customer-hours a year**. Repairing the planner's top 500 dead valves recovers 54%; top 3,000 recovers 83%.
 - Don't quote the transmission totals (12 M+) as a headline. They come from modeled low pressure while a big main gushes, they depend on the break-size and response-time assumptions, and no valve repair changes them.
 
 **[Cost figures unverified: C will source them before the pitch.]** Replacing a main costs on the order of $1M per mile. Repairing a valve costs a few thousand dollars. The repair planner picks the valves whose repair shrinks outages the most.

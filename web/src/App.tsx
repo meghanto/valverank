@@ -48,6 +48,23 @@ type ValveProps = { id: number; c: string; r: string | null; cy: number | null; 
 
 const fmt = (n: number) => n.toLocaleString('en-US')
 
+/** Screen distance (px) from (x, y) to a rendered line feature. */
+function pixelDistance(map: maplibregl.Map, f: maplibregl.MapGeoJSONFeature, x: number, y: number) {
+  const g = f.geometry
+  const lines: number[][][] = g.type === 'LineString' ? [g.coordinates] : g.type === 'MultiLineString' ? g.coordinates : []
+  let best = Infinity
+  for (const line of lines) {
+    const pts = (line as [number, number][]).map(c => map.project(c))
+    for (let i = 0; i + 1 < pts.length; i++) {
+      const a = pts[i], b = pts[i + 1]
+      const dx = b.x - a.x, dy = b.y - a.y
+      const u = Math.max(0, Math.min(1, ((x - a.x) * dx + (y - a.y) * dy) / (dx * dx + dy * dy || 1)))
+      best = Math.min(best, Math.hypot(a.x + u * dx - x, a.y + u * dy - y))
+    }
+  }
+  return best
+}
+
 export default function App() {
   const mapEl = useRef<HTMLDivElement>(null)
   const mapRef = useRef<maplibregl.Map | null>(null)
@@ -88,7 +105,8 @@ export default function App() {
         id: 'pipes', type: 'line', source: 'city', 'source-layer': 'pipes',
         paint: {
           'line-color': ['case', ['<', ['coalesce', ['get', 'y'], 2000], 1970], '#6b7c93', '#3d4a5c'],
-          'line-width': ['interpolate', ['linear'], ['zoom'], 11, 0.6, 16, 2.5],
+          'line-width': ['interpolate', ['linear'], ['zoom'], 11, ['case', ['>=', ['to-number', ['get', 'd'], 0], 24], 2, 0.6],
+                         16, ['case', ['>=', ['to-number', ['get', 'd'], 0], 24], 6, 2.5]],
         },
       })
       map.addLayer({
@@ -135,8 +153,15 @@ export default function App() {
       map.once('idle', () => setLoading(false))
       map.on('mouseenter', 'pipes', () => (map.getCanvas().style.cursor = 'crosshair'))
       map.on('mouseleave', 'pipes', () => (map.getCanvas().style.cursor = ''))
-      map.on('click', 'pipes', (e: MapMouseEvent & { features?: maplibregl.MapGeoJSONFeature[] }) => {
-        const f = e.features?.[0]
+      // pipes are ~1 px wide at city zoom: accept clicks within a few pixels, nearest box first
+      map.on('click', (e: MapMouseEvent) => {
+        const { x, y } = e.point
+        const t = 12
+        const near = map.queryRenderedFeatures([[x - t, y - t], [x + t, y + t]], { layers: ['pipes'] })
+        // nearest first; within 2 px (pipes meeting at a junction) prefer the bigger main
+        const diam = (g: maplibregl.MapGeoJSONFeature) => Number(g.properties.d) || 0
+        const f = near.map(g => ({ g, d: Math.round(pixelDistance(map, g, x, y) / 2) }))
+          .sort((a, b) => a.d - b.d || diam(b.g) - diam(a.g))[0]?.g
         if (!f) return
         const p = f.properties as { k: number; sp: number; sr: number; d: number | null; m: string | null; y: number | null }
         breakAt([e.lngLat.lng, e.lngLat.lat], p)
@@ -179,6 +204,11 @@ export default function App() {
       type: 'FeatureCollection',
       features: [{ type: 'Feature', geometry: { type: 'Point', coordinates: lngLat }, properties: {} }],
     })
+    // distribution outages are a few hundred metres of pipe (zoom in); transmission breaks
+    // drop pressure across whole districts while gushing (zoom out to show it)
+    const big = (Number(p.d) || 0) >= 24
+    if (big) map.easeTo({ center: lngLat, zoom: 11.5, duration: 900 })
+    else if (map.getZoom() < 15) map.easeTo({ center: lngLat, zoom: 15.5, duration: 900 })
     const paper = segs.paper[p.sp]
     map.setFilter('paper-hl', ['==', ['get', 'sp'], p.sp])
     map.setFilter('real-hl', ['==', ['get', 'sr'], -1])
@@ -196,6 +226,18 @@ export default function App() {
       map.setFilter('hydrants-hl', ['==', ['get', 'sr'], p.sr])
       setBrk({ ...b, stage: 'real' })
     }, 1400)
+  }
+
+  function clearBreak() {
+    const map = mapRef.current
+    window.clearTimeout(timer.current)
+    setBrk(null)
+    showPressure([], null)
+    if (!map) return
+    ;(map.getSource('break') as GeoJSONSource).setData({ type: 'FeatureCollection', features: [] })
+    for (const id of ['paper-hl', 'real-hl']) map.setFilter(id, ['==', ['get', id === 'paper-hl' ? 'sp' : 'sr'], -1])
+    map.setFilter('hydrants-hl', ['==', ['get', 'sr'], -1])
+    for (const id of ['valves-close', 'valves-dead']) map.setFilter(id, ['in', ['get', 'id'], ['literal', []]])
   }
 
   const segs = segsRef.current
@@ -264,7 +306,7 @@ export default function App() {
               )
             )}
             {brk.stage === 'real' && <Timeline piece={brk.k} onShow={showPressure} />}
-            <button className="reset" onClick={() => { setBrk(null); showPressure([], null) }}>Back to overview</button>
+            <button className="reset" onClick={clearBreak}>Back to overview</button>
           </section>
         )}
 

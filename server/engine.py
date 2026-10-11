@@ -3,7 +3,7 @@
 Phases (see pipeline/sim.py for the definitions):
   gush        break open, nothing closed                         t_first min
   gush_dead   working ring valves closed, dead valve open        t_dead min   (real only, if a dead valve is in the ring)
-  isolated    segment closed (+ segments cut off downstream)     rest of t_repair
+  isolated    segment closed (+ segments cut off downstream)     t_repair (repair starts once isolated)
 
 Isolated phases use exact connectivity (segment + downstream supply loss).
 Gushing phases use EPANET: a local window (RADIUS_M, boundary pinned to baseline
@@ -296,10 +296,8 @@ class Engine:
             if s == "real" and ring_dead:
                 gd = self._gush_out(k, ring_working, emit, exact)
                 phases.append(("gush_dead", t_dead, self._pieces_of_junctions(gd)))
-                rest = max(t_repair - t_dead, 0)
-            else:
-                rest = t_repair
-            phases.append(("isolated", rest, iso_pieces))
+            # repair starts once the break is isolated, so a dead valve delays it by t_dead
+            phases.append(("isolated", t_repair, iso_pieces))
             rows, ch = [], 0.0
             for name, minutes, pcs in phases:
                 c = float(self.cust_piece[pcs].sum()) if pcs else 0.0

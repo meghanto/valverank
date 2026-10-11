@@ -52,7 +52,7 @@ export function Timeline({ piece, onShow }: { piece: number; onShow: (pieces: nu
   if (err) return <p className="ok">Live pressure model unavailable ({err}). Outage areas above still use the City network.</p>
   if (!run) return <p className="ok">Running the pressure model…</p>
 
-  const total = Math.max(params.t_repair, params.t_first + params.t_repair)
+  const total = params.t_first + params.t_dead + params.t_repair  // longest (real) timeline; both tracks share the scale
   const extra = run.real.customer_hours - run.paper.customer_hours
   return (
     <div className={`timeline ${busy ? 'busy' : ''}`}>

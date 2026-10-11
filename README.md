@@ -17,9 +17,9 @@ Shutoff runs this on Houston's real water network (290,959 pipe segments, 166,36
 
 | | Every valve works | City-recorded valve status |
 |---|---|---|
-| Neighborhood mains (< 24″, 10,335 breaks/yr) | 1.03 M | **2.02 M** |
-| Citywide dead-valve cost | — | **1.32 M** |
-| Repair the planner's top 100 / 500 / 3,000 dead valves | | recovers 38% / 59% / 87% of that cost |
+| Neighborhood mains (< 24″, 10,335 breaks/yr) | 1.03 M | **2.49 M** |
+| Citywide dead-valve cost | — | **1.82 M** |
+| Repair the planner's top 100 / 500 / 3,000 dead valves | | recovers 32% / 54% / 83% of that cost |
 
 Transmission mains (≥ 24″, 784 breaks/yr) add 12.4–12.7 M, almost all of it low pressure while the break gushes. That figure depends on the assumed break size and response time, and no valve repair changes it, so it is reported separately.
 

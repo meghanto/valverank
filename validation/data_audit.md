@@ -224,14 +224,15 @@ About 900 Houston water-break articles, 2010–2026: sitemaps of ABC13, Houston 
 
 | Class | Breaks/yr (length share) | Paper c-h/yr | Real c-h/yr | Gushing share of paper |
 |---|---|---|---|---|
-| Distribution (< 24″) | 10,335 | 1,031,000 | 2,022,717 | 1% |
-| Transmission (≥ 24″) | 784 | 12,364,922 | 12,691,737 | 99% |
+| Distribution (< 24″) | 10,335 | 1,031,000 | 2,494,514 | 1% |
+| Transmission (≥ 24″) | 784 | 12,364,922 | 12,717,278 | 99% |
 
-- Dead-valve cost citywide: 1,318,533 c-h/yr (distribution 991,718; transmission 326,815). 25,622 segments have at least one dead first-ring valve; 16,512 distinct dead valves sit in some ring.
-- Repair planner (greedy, `pipeline/repair.py`): top 10 / 100 / 500 / 1,000 / 3,000 recover 17% / 38% / 59% / 70% / 87%.
+- Dead-valve cost citywide: 1,815,870 c-h/yr (distribution 1,463,514; transmission 352,356). 25,622 segments have at least one dead first-ring valve; 16,773 distinct dead valves sit in some ring with positive value.
+- Repair planner (greedy, `pipeline/repair.py`): top 10 / 100 / 500 / 1,000 / 3,000 recover 12% / 32% / 54% / 64% / 83%.
 - Transmission totals are driven by the gushing phase (mean 9,438 customers below 20 psi per break, median 0). They depend on the break-size and response-time assumptions and are not a headline number.
 - 569 segments first failed with EPANET errors 203/223: their break node lies on a fragment outside the hydraulic model. Fixed (`4b9b629`): they skip the pressure phase and keep shutoff + downstream counts.
 - Superseded: the "top 50 recover 72%" figure from the 2% partial run.
+- **Timing bug fixed (04:20, found in the browser check).** The engine shortened the real isolated phase to `t_repair − t_dead`, so a dead valve *saved* repair time: 2,784 rows (3.9%) had real < paper customer-hours. Repair starts only once the break is isolated, so the isolated phase now lasts `t_repair` in both scenarios. Batch rows written before the fix are corrected exactly in `repair.py:fix_timing` (customer counts are integers, so the isolated count is recoverable from the totals); 40/40 sampled rows match a fresh engine run, and 0 rows now have real < paper. Numbers above are post-fix; pre-fix values were distribution real 2,022,717, dead-valve cost 1,318,533.
 
 ## 12. Are valve repairs after March 2023 published anywhere? (2026-10-11 04:00)
 

@@ -39,7 +39,8 @@ export function Repair({ data, onChange }: { data: RepairData; onChange: (n: num
       <p className="fine">
         One simulated break per isolation segment ({Math.round(data.coverage_share_of_pipe_length * 100)}% of pipe length), weighted by
         pipe length × {fmt(data.breaks_per_year)} breaks/yr (HPW FY2023), default slider assumptions. Transmission mains (24 in+) are
-        excluded from the headline: their totals are dominated by modeled low pressure while gushing, which no valve repair changes.
+        left out of the first sentence: they add {fmt(data.by_class.transmission.paper)}–{fmt(data.by_class.transmission.real)} customer-hours,
+        almost all modeled low pressure while gushing, which no valve repair changes.
         Green dots on the map are the chosen valves.
       </p>
     </section>
