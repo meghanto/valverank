@@ -4,6 +4,7 @@ Gemini never produces a number shown to the user: parse_question returns a place
 and parameters that the engine then runs; crew_brief receives the engine's
 numbers and is told to use only those.
 """
+import functools
 import json
 import os
 import time
@@ -42,6 +43,10 @@ def parse_question(q: str) -> dict:
 _STREET_WORDS = r"(road|rd|street|st|drive|dr|avenue|ave|boulevard|blvd|lane|ln|parkway|pkwy|freeway|fwy|way)\.?$"
 
 
+OVERPASS = ["https://overpass-api.de/api/interpreter", "https://maps.mail.ru/osm/tools/overpass/api/interpreter"]
+
+
+@functools.lru_cache(maxsize=256)  # repeated demo questions answer instantly
 def _intersection(a: str, b: str):
     """Shared OSM node of two named streets inside Houston (Overpass); (lon, lat) or None."""
     import re
@@ -53,10 +58,16 @@ def _intersection(a: str, b: str):
     bb = "29.45,-95.95,30.20,-94.95"  # Houston service area (a bbox is far cheaper than an area query)
     q = (f'[out:json][timeout:25];way({bb})["highway"]["name"~"{esc[0]}",i]->.a;'
          f'way({bb})["highway"]["name"~"{esc[1]}",i]->.b;node(w.a)(w.b);out 1;')
-    req = urllib.request.Request("https://overpass-api.de/api/interpreter", data=urllib.parse.urlencode({"data": q}).encode(),
-                                 headers={"User-Agent": "h2out-hackathon/0.1"})
-    els = json.load(urllib.request.urlopen(req, timeout=30)).get("elements", [])
-    return (els[0]["lon"], els[0]["lat"]) if els else None
+    last = None
+    for url in OVERPASS:  # the main host refuses or times out under load; mail.ru mirror verified 2026-10-11
+        try:
+            req = urllib.request.Request(url, data=urllib.parse.urlencode({"data": q}).encode(),
+                                         headers={"User-Agent": "h2out-hackathon/0.1"})
+            els = json.load(urllib.request.urlopen(req, timeout=30)).get("elements", [])
+            return (els[0]["lon"], els[0]["lat"]) if els else None
+        except Exception as e:
+            last = e
+    raise last
 
 
 def geocode(place: str):
