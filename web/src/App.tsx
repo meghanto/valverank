@@ -1,8 +1,9 @@
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import * as maplibregl from 'maplibre-gl'
 import type { GeoJSONSource, MapMouseEvent } from 'maplibre-gl'
 import 'maplibre-gl/dist/maplibre-gl.css'
 import { Timeline, type Phase } from './Timeline'
+import { Repair, type RepairData } from './Repair'
 import workerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?url'
 import { Protocol } from 'pmtiles'
 
@@ -56,9 +57,11 @@ export default function App() {
   const [stats, setStats] = useState<Stats | null>(null)
   const [brk, setBrk] = useState<Break | null>(null)
   const [loading, setLoading] = useState(true)
+  const [repair, setRepair] = useState<RepairData | null>(null)
 
   useEffect(() => {
     fetch(`${DATA}stats.json`).then(r => r.json()).then(setStats)
+    fetch(`${DATA}repair.json`).then(r => r.json()).then(setRepair).catch(() => setRepair(null))
     fetch(`${DATA}segments.json`).then(r => r.json()).then(s => (segsRef.current = s))
     fetch(`${DATA}valves_inop.json`)
       .then(r => r.json())
@@ -123,6 +126,12 @@ export default function App() {
         paint: { 'circle-radius': 9, 'circle-color': '#ff4f32', 'circle-stroke-color': '#fff', 'circle-stroke-width': 3 },
       })
 
+      map.addSource('repair', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } })
+      map.addLayer({
+        id: 'repair', type: 'circle', source: 'repair', filter: ['<', ['get', 'rank'], 0],
+        paint: { 'circle-radius': ['interpolate', ['linear'], ['zoom'], 10, 2.5, 16, 7], 'circle-color': '#3ddc97',
+                 'circle-stroke-color': '#111318', 'circle-stroke-width': 1 },
+      })
       map.once('idle', () => setLoading(false))
       map.on('mouseenter', 'pipes', () => (map.getCanvas().style.cursor = 'crosshair'))
       map.on('mouseleave', 'pipes', () => (map.getCanvas().style.cursor = ''))
@@ -136,6 +145,23 @@ export default function App() {
     return () => map.remove()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
+
+  const showRepairs = useCallback((n: number) => {
+    const map = mapRef.current
+    if (!map || !map.getLayer('repair')) return
+    map.setFilter('repair', ['<', ['get', 'rank'], n])
+  }, [])
+
+  useEffect(() => {
+    const map = mapRef.current
+    if (!map || !repair) return
+    const set = () => (map.getSource('repair') as GeoJSONSource | undefined)?.setData({
+      type: 'FeatureCollection',
+      features: repair.valves.map((v, i) => ({ type: 'Feature', geometry: { type: 'Point', coordinates: [v.lon, v.lat] }, properties: { rank: i, id: v.id } })),
+    })
+    if (map.getSource('repair')) set()
+    else map.once('load', set)
+  }, [repair])
 
   function showPressure(pieces: number[], kind: Phase['phase'] | null) {
     const map = mapRef.current
@@ -199,6 +225,7 @@ export default function App() {
             </div>
           </section>
         )}
+        {!brk && repair && repair.valves.length > 0 && <Repair data={repair} onChange={showRepairs} />}
 
         {brk && paper && real && (
           <section className="break">

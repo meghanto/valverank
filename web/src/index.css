@@ -71,3 +71,8 @@ footer { margin-top: auto; font-size: 11px; color: var(--muted); line-height: 1.
 .slider b { color: var(--ink); font-weight: 600; }
 .slider input { width: 100%; accent-color: var(--real); }
 .fine { font-size: 11px; color: var(--muted); line-height: 1.4; margin: 0; }
+
+.repair { border-top: 1px solid var(--line); padding-top: 14px; display: flex; flex-direction: column; gap: 10px; }
+.repair h2 { font-size: 16px; margin: 0; }
+.repair .lede b.real { color: var(--real); }
+.ch span.fixed { color: #3ddc97; }
