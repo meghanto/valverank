@@ -144,3 +144,15 @@ footer { margin-top: auto; font-size: 11px; color: var(--muted); line-height: 1.
 
 .legend-items { display: flex; flex-direction: column; gap: 6px; margin-top: 6px; }
 .legend-items span { white-space: nowrap; }
+
+.search { position: relative; margin: 6px 0 14px; }
+.search form { display: flex; gap: 6px; }
+.search input { flex: 1; min-width: 0; padding: 9px 11px; font: inherit; font-size: 14px; color: inherit;
+  background: #1d212a; border: 1px solid #343b49; border-radius: 8px; }
+.search input:focus { border-color: var(--paper); outline: none; }
+.search button { padding: 9px 14px; font: inherit; font-size: 14px; font-weight: 600; color: #111318; background: #f5f3ee; border: 0; border-radius: 8px; cursor: pointer; }
+.search button:disabled { opacity: 0.55; cursor: default; }
+.search-list { position: absolute; z-index: 5; left: 0; right: 0; top: calc(100% + 4px); margin: 0; padding: 4px; list-style: none;
+  background: #1a1e26; border: 1px solid #343b49; border-radius: 10px; box-shadow: 0 12px 28px #000a; }
+.search-list li { padding: 8px 10px; border-radius: 6px; font-size: 14px; cursor: pointer; }
+.search-list li:hover, .search-list li.active { background: #2a3140; }

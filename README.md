@@ -1,10 +1,12 @@
-# Shutoff
+# ValveRank
+
+**Find the right valves to fix in Houston's water network.**
 
 **When a Houston water main breaks, how many homes really lose water?**
 
 Crews isolate a break by closing the nearest valves. The City of Houston's own GIS records mark **17,413 valves on water mains as inoperable** (seized, buried, or "cannot locate"). When a valve won't close, crews have to go to the next ring of valves, and the outage spreads.
 
-Shutoff runs this on Houston's real water network (290,959 pipe segments, 166,362 valves, 62,540 hydrants, 544,011 customer accounts). Click any main to break it. You see the outage if every valve worked, then the outage given the City's recorded valve status.
+ValveRank runs this on Houston's real water network (290,959 pipe segments, 166,362 valves, 62,540 hydrants, 544,011 customer accounts). Click any main to break it. You see the outage if every valve worked, then the outage given the City's recorded valve status.
 
 | Citywide result (model) | Every valve works | City-recorded valve status |
 |---|---|---|

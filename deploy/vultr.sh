@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Create the H2Out API server on Vultr and ship the code + model files.
+# Create the ValveRank API server on Vultr and ship the code + model files.
 # Needs VULTR_API_KEY in ../.env. Prints the instance IP. Creating an instance spends account credit.
 #   deploy/vultr.sh create    # make the instance (asks for confirmation)
 #   deploy/vultr.sh ship IP   # rsync code + data/build, install, start the API (systemd, port 80)
@@ -40,7 +40,7 @@ ship)
     cd /opt/h2out && uv sync --project pipeline
     cat > /etc/systemd/system/h2out.service <<UNIT
 [Unit]
-Description=H2Out API
+Description=ValveRank API
 After=network.target
 [Service]
 WorkingDirectory=/opt/h2out

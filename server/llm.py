@@ -85,7 +85,7 @@ def _intersection(a: str, b: str):
     for url in OVERPASS:  # the main host refuses or times out under load; mail.ru mirror verified 2026-10-11
         try:
             req = urllib.request.Request(url, data=urllib.parse.urlencode({"data": q}).encode(),
-                                         headers={"User-Agent": "h2out-hackathon/0.1"})
+                                         headers={"User-Agent": "valverank-hackathon/0.1"})
             els = json.load(urllib.request.urlopen(req, timeout=30)).get("elements", [])
             return (els[0]["lon"], els[0]["lat"]) if els else None
         except Exception as e:
@@ -112,7 +112,7 @@ def geocode(place: str):
                 time.sleep(2)
     q = place if "houston" in place.lower() else place + ", Houston, TX"
     url = "https://nominatim.openstreetmap.org/search?" + urllib.parse.urlencode({"q": q, "format": "json", "limit": 1})
-    req = urllib.request.Request(url, headers={"User-Agent": "h2out-hackathon/0.1"})
+    req = urllib.request.Request(url, headers={"User-Agent": "valverank-hackathon/0.1"})
     time.sleep(1)
     res = json.load(urllib.request.urlopen(req, timeout=20))
     return (float(res[0]["lon"]), float(res[0]["lat"])) if res else None

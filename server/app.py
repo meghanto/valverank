@@ -1,4 +1,4 @@
-"""H2Out API: break timelines on the full Houston network.
+"""ValveRank API: break timelines on the full Houston network.
 
   GET  /health
   GET  /break/{piece}?opening=&t_first=&t_dead=&t_repair=&exact=   timeline (fast window, or exact full city)
@@ -32,7 +32,7 @@ for line in (ROOT / ".env").read_text().splitlines() if (ROOT / ".env").exists()
         k, v = line.split("=", 1)
         os.environ.setdefault(k.strip(), v.strip())
 
-app = FastAPI(title="H2Out")
+app = FastAPI(title="ValveRank")
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
 ENGINE: Engine | None = None
 
@@ -160,6 +160,25 @@ def year():
 
 
 _YEAR = None
+
+
+@app.get("/search")
+def search(q: str):
+    """Live suggestions: City street intersections matching what was typed."""
+    from server import search as S
+    return {"results": S.suggest(q)}
+
+
+@app.get("/locate")
+def locate(q: str):
+    """Intersection, street address or place -> the largest main within 60 m."""
+    from server import search as S
+    hit = S.locate(q)
+    if not hit:
+        raise HTTPException(404, f"could not find {q!r} in Houston")
+    lon, lat, label = hit
+    n = nearest(lon, lat)
+    return {"label": label, "lon": lon, "lat": lat, "piece": n["piece"], "distance_m": n["distance_m"]}
 
 
 class Ask(BaseModel):
