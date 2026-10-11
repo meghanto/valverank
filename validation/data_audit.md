@@ -232,3 +232,21 @@ About 900 Houston water-break articles, 2010–2026: sitemaps of ABC13, Houston 
 - Transmission totals are driven by the gushing phase (mean 9,438 customers below 20 psi per break, median 0). They depend on the break-size and response-time assumptions and are not a headline number.
 - 569 segments first failed with EPANET errors 203/223: their break node lies on a fragment outside the hydraulic model. Fixed (`4b9b629`): they skip the pressure phase and keep shutoff + downstream counts.
 - Superseded: the "top 50 recover 72%" figure from the 2% partial run.
+
+## 12. Are valve repairs after March 2023 published anywhere? (2026-10-11 04:00)
+
+Swept every service on both City GIS servers (`geogimsms`, `geohwp`): 186 services, 1,394 layers, filtered by name for valve/water/hydrant/main/work/repair/asset/CIP/SAM/model.
+
+| Source | What it holds | Newer than the valve snapshot? | Valve repairs? |
+|---|---|---|---|
+| `HPC/UtilityAnalysis_gx/39` (used) | 166,362 valves, 21,574 INOP | No: DATEMODIFIED max 2023-06-05, CONDITIONDATE max 2023-03-02 | — |
+| `HW/OutsideWater_gx/25` | Identical copy: same count, same INOP count, same max dates | No | No |
+| `EMC/WaterBreak_Dashboard` layers 0–6 | 311 cases: 3,495 water-break calls (2021-09 → 2024-06-20), 2,402 leaks, 293 hydrant, **117 "Water Main Valve"** (2023-04 → 2024-06), status incl. "Service Completed" | Yes, to 2024-06-20, then frozen | Complaints/service requests, not condition updates. Upper bound: 117 cases vs 17,413 INOP on mains (0.7%) |
+| `04_BaseData_Operations/CIP/0` | 1,996 capital projects, MOD_DATE to 2026-05-31; 277 mention valves, almost all large-diameter (16–84″) | Yes | Capital replacements of big valves. 108 INOP main valves lie within 50 m of a CIP valve project (219 within 100 m); 34 of the 963 INOP valves ≥ 16″ within 50 m. Many of these projects predate 2023 |
+| Sewer layers (`Sewer_Network/0,6`, `OutsideWastewater_gx/15,16`) | Wastewater valves | — | Not water |
+
+**Not public / not searched:** work orders (`311_ARCHIVED_CASES` stopped), HPW valve-exercising program records, City Council agenda items for valve contracts, Texas Public Information Act request (days, not hours).
+
+**Conclusion:** no public source records valve condition after March 2023. Bounds from what is public: ≤ 117 311 valve cases (0.7%) and ~108 INOP valves near capital valve projects (0.6%) could have been repaired. The 17,413 figure stands as "City records, June 2023 snapshot". Unknown-condition valves (96,732, treated as working) push the other way.
+
+**New validation lead:** `WaterBreak_Dashboard/0` has 3,495 geolocated water-break 311 calls (2021-09 → 2024-06) with created/closed dates. It could test the length-weighted break distribution by main class. Do not export the `INCIDENT_ADDRESS`/`TITLE` fields (street addresses).
