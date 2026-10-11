@@ -1,0 +1,141 @@
+# Shutoff: why a single water-main break in Houston can dry out a whole neighborhood
+
+> **One line:** When a Houston water main breaks, crews close the nearest valves. The City's own records mark **21,574 of those valves inoperable**, and **15,781 as "cannot locate"**. Shutoff simulates a break on any real main and shows the outage area on paper against the area in reality. It then picks which valves to repair first for the largest reduction in outages and water lost.
+
+**Targets:** Best Overall ($1,000), Best Environment Hack ($500, under "resource use"), Best Pitch/Demo ($500)
+
+---
+
+## 1. The problem
+
+| Fact | Number | Source |
+|---|---|---|
+| Water lost to leaks in Houston, 2023 | **31.8 billion gallons** | [ABC13](https://abc13.com/post/houston-public-works-testify-citys-water-issues-inquire-financial-compensation-fix-infrastructure-issues/15260907/) |
+| Reported leaks, 2020 → 2023 | 9,143 → **13,911** | Same |
+| 311 water-leak requests in one year | **44,353** (up from 35,756) | [ABC13](https://abc13.com/post/water-leaks-remain-among-city-houstons-top-311-complaints-past-year-despite-recent-improvements-data-shows/15538722/) |
+| Water mains in the City's GIS | **290,959 segments** | City ArcGIS layer 51, queried 2026-10-10 |
+| …of which cast iron / asbestos cement | 28,021 / 44,422 | Same, `MATERIAL` |
+| System valves | **166,362** | City ArcGIS layer 39 |
+| Marked **inoperable** | **21,574**: 13% of all valves, 31% of the 69,630 that have a condition recorded | Same, `CONDITION = 'INOP'` |
+| Marked **"cannot locate"** | **15,781** | Same, `REASON_INOPERABLE` |
+| Pipe replaced in the last decade | ~6% (850 of 2,800 miles), against a 20% target | [ABC13, Sep 2024](https://abc13.com/post/houston-public-works-testify-citys-water-issues-inquire-financial-compensation-fix-infrastructure-issues/15260907/) |
+| Water-line replacement rate, FY25 | **0.3%** vs a 3% target; average leak repair 41 days | [Bayou City Waterkeeper, Jun 2026](https://bayoucitywaterkeeper.org/what-houstons-fy27-budget-means-for-our-water-infrastructure/) |
+| Inoperable rate among valves inspected 2022–23 | **20%** (2,634 / 13,017) | City layer 39, our query |
+| **Data freshness** | The public water GIS is a **June 2023 snapshot** (valves last edited 2023-06-05). No valve inspections are published after 2023. | Our query; see `news.md` §3.3 |
+| Break rate by material | Cast iron ~28.6 vs PVC ~2.9 breaks per 100 mi-yr *[re-verify]* | [ASCE](https://ascelibrary.com/doi/10.1061/9780784485569.051), [USU study](https://www.westlakepipe.com/sites/default/files/2024-05/water-main-break-rates-in-the-usa-and-canada-a-comprehensive-study.pdf) |
+
+**Houston news coverage of the inoperable-valve records:** none found. To our knowledge the 21,574 figure has not been reported publicly.
+
+**The mechanism:** a break is isolated by closing the valves around it. If one of those valves is seized, buried or lost, crews must move out to the next valve. The shutoff spreads to more homes, takes longer, and loses more water while crews search.
+
+---
+
+## 2. What we build
+
+1. **Water network graph** from 290k mains, with pipe endpoints as nodes (the City's data shares endpoint coordinates exactly). Valves are snapped onto pipes: in our sample 57% sit exactly on a pipe and 60% within 2 m.
+2. **Valve segments.** Split the graph at valves into "segments", the smallest areas that can be isolated (Walski's segment concept). Compute this twice:
+   - **on paper:** every valve works
+   - **in reality:** valves marked `INOP` or `CANNOT_LOCATE` are treated as stuck open, so neighboring segments merge
+3. **Break simulation.** Click any main. The tool returns the valves to close, the outage area (paper vs. reality), affected customers (544,011 City customer-account points), and an estimate of water lost (drain-down volume from pipe length and diameter, plus flow until shutoff).
+4. **Expected impact per segment.** Break likelihood (material × age × length, from published break rates) × customers affected × gallons lost.
+5. **Valve repair planner.** Given a budget of *N* valve repairs, choose the valves whose repair most reduces expected customer-outage-hours or gallons lost. The objective is set-based and greedy-friendly; state the approximation honestly.
+
+---
+
+## 3. 90-second demo
+
+| Time | Judge sees | Narration |
+|---|---|---|
+| 0–15 s | Houston map. Every inoperable valve is a red dot, and there are 21,574 of them. | "These are valves Houston's own records say don't work, or can't be found." |
+| 15–40 s | **Judge clicks** any water main in their own neighborhood. It "breaks". The paper outage appears small and blue, then expands red to the real outage. | "On paper this break shuts off 40 homes. In reality, because two valves here are dead, it's 600." |
+| 40–60 s | Side panel: customers affected, valves crews must close, estimated gallons lost, nearby care facilities | "And while crews hunt for a valve that isn't there, the water keeps running." |
+| 60–80 s | **Judge drags** a "valves repaired" slider from 0 to 200. Citywide expected outage-hours and gallons lost fall, and the chosen valves light up. | "Repairing a valve costs far less than replacing a main. Here are the 200 that matter most." |
+| 80–90 s | Close | "Houston replaced 6% of its pipes in a decade. This is what to fix tomorrow." |
+
+---
+
+## 4. Fit with Orion's judging criteria
+
+| Criterion | How Shutoff scores |
+|---|---|
+| **Originality** | No hackathon project found (Devpost search for valve isolation, shutoff, criticality). **Commercial prior art exists:** Bentley WaterGEMS does segmentation and criticality, including inoperable valves; Autodesk InfoWater Pro has criticality in preview; Esri's Utility Network has isolation traces. Novel parts: built on a city's *public* records, uses the real inoperable-valve flags, ranks repairs, runs in a browser. |
+| **Relevance to track (Environment)** | "Resource use": gallons lost per break and gallons saved per valve repaired must be in the product, not only in the pitch. This is the weakest fit of the two environment ideas. |
+| **Impact** | Every Houstonian has seen a main break. Houston loses billions of gallons a year. A cheap, actionable fix. |
+| **Demo** | Very strong: the judge breaks a pipe on their own street and watches the outage spread. |
+| **Technical implementation** | Graph segmentation over 290k edges, valve snapping, a segment-merge model, a risk model, and repair optimization. **No ground-truth validation:** there are no public break or outage records to compare against. |
+
+---
+
+## 5. Business case
+
+- **Buyer:** Houston Public Works, Houston Water (distribution operations, asset management). Secondary: any utility with GIS valve condition data; valve-exercising contractors.
+- **Existing alternatives:**
+
+  | Alternative | Gap |
+  |---|---|
+  | Bentley WaterGEMS / Autodesk InfoWater | Licensed desktop tools that need modelers; criticality is a feature, not a work plan |
+  | Esri Utility Network isolation trace | Needs a migrated Utility Network; community reports problems filtering inoperable valves |
+  | Valve-exercising programs (AWWA G200 practice) | Cycle through valves on a schedule rather than by impact |
+
+- **Differentiation:** zero-install, works from the city's existing GIS export, prioritizes valve repairs by impact.
+- **Beyond the hackathon:** the same tool for any city that publishes valve condition. Add work-order history to validate.
+
+## 6. Technical design
+
+```
+City ArcGIS REST (mains, valves, customer accounts, hydrants) ─► ingest (Python) ─► GeoParquet
+          │
+  node pipes by endpoints; snap valves to nearest pipe (≤ X m), splitting edges
+          │
+  segment finding: remove valve nodes → connected components (paper)
+                   keep INOP valves as pass-through → merged components (reality)
+          │
+  per segment: customers (point-in-buffer), pipe length/diameter → drain-down volume, break likelihood
+          │
+  repair planner: greedy over INOP valves by Δ expected impact
+          │
+  export: segment polygons/IDs + edge→segment map + valve list ─► React + MapLibre/deck.gl
+```
+
+- **Scope** the interactive demo to a few council districts, about 30–60k pipes. Citywide numbers are precomputed.
+- Segmentation is linear-time connected components. Done offline it costs nothing.
+
+## 7. Data (each endpoint queried on 2026-10-10)
+
+| Data | Endpoint | Size |
+|---|---|---|
+| Water mains | `geogimsms.houstontx.gov/arcgis/rest/services/HPC/UtilityAnalysis_gx/MapServer/51` | 290,959 |
+| System valves | same service, layer 39 | 166,362 |
+| Hydrants / pressure-reducing stations | layers 46 / 48 | 62,540 / — |
+| Customer accounts | `CAS/Customer_Operation_gx/MapServer/1` | 544,011 |
+| Critical facilities | `HPC/CriticalFacilities` (adult care 447). Hospitals and schools come from HIFLD *[not verified]*. | — |
+| **311 water requests, Winter Storm Uri** (Feb 14–25 2021) | `services.arcgis.com/NummVBqZSIJKUeVR/arcgis/rest/services/311_water2019/FeatureServer/0` (geocoded, with HCAD parcel) | **11,041**: Water Leak 3,594, **Water Main Valve 3,429**, Water Service 3,160 |
+| 311 counts by ZIP (Water_Leak, Water_Main columns; period unknown) | `.../data311/FeatureServer/0` | 110 ZIPs |
+
+**How 311 is used:** a case study, not training data. During Winter Storm Uri, Houstonians filed 3,429 "Water Main Valve" requests in 11 days. Overlay them on our segments: did requests cluster where inoperable valves would merge segments? A positive correlation is partial evidence the model reflects reality. No correlation gets reported honestly. Current water-leak 311 data is not public (the archive service is stopped).
+
+## 8. Claims we will and won't make
+
+- **Will:** "The City's records mark 21,574 valves inoperable. Under our model, the average break's outage grows by X%." Label it as a model.
+- **Won't:** claim the valve flags are current. They are the City's records; show "condition date" ranges. Won't claim validation against real outages, because none is possible with public data.
+
+## 9. Build plan
+
+| Window | Work |
+|---|---|
+| Sat 3:30–6 PM | Pull mains, valves and customers for the demo districts. Node the network, snap valves. Deploy a skeleton map. |
+| Sat 6–10 PM | Paper and reality segmentation, click-a-pipe outage, customer counts |
+| Sat 10 PM–2 AM | Drain-down volume, break likelihood, repair planner, slider |
+| Sun 2–6 AM | Citywide precompute, data-quality panel (snap distances, condition dates), animation |
+| Sun 6–9 AM | Polish, README, **freeze 9 AM** |
+| Sun 9 AM–12:30 PM | Devpost, slides, rehearsal, fallback video |
+
+## 10. Risks
+
+| Risk | Mitigation |
+|---|---|
+| Valve snapping errors produce wrong segments | Snap tolerance plus a data-quality panel. Hand-check a few segments on the map. |
+| "Bentley already does this" | Name it. Pitch public data, real inoperable flags, repair ranking and no license. |
+| Weak environment-track fit | Put gallons lost and gallons saved into the product UI |
+| No validation data | Sensitivity analysis: results under different assumptions about how many flagged valves are truly dead |
+| Stale condition records | Show `CONDITIONDATE` distributions. Frame the output as "according to the City's own records". |
