@@ -11,6 +11,60 @@
   "downloaded_utc": "2026-10-10T20:56:31+00:00",
   "records": 544011
  },
+ "facilities_adult_care.json": {
+  "bytes": 256583,
+  "sha256": "3d3462e2455ca4b5",
+  "downloaded_utc": "2026-10-11T03:51:08+00:00",
+  "records": 447
+ },
+ "facilities_assisted_living.json": {
+  "bytes": 77291,
+  "sha256": "e3e6be059bcc802e",
+  "downloaded_utc": "2026-10-11T03:51:08+00:00",
+  "records": 191
+ },
+ "facilities_correctional.json": {
+  "bytes": 8501,
+  "sha256": "4f44db758e6a8e6d",
+  "downloaded_utc": "2026-10-11T03:51:08+00:00",
+  "records": 15
+ },
+ "facilities_fire_stations.json": {
+  "bytes": 51175,
+  "sha256": "5376b36eee765b7a",
+  "downloaded_utc": "2026-10-11T03:51:08+00:00",
+  "records": 94
+ },
+ "facilities_hospitals.json": {
+  "bytes": 33222,
+  "sha256": "0820a6effad735ec",
+  "downloaded_utc": "2026-10-11T03:51:08+00:00",
+  "records": 108
+ },
+ "facilities_icf.json": {
+  "bytes": 8043,
+  "sha256": "ef57729dacf178a9",
+  "downloaded_utc": "2026-10-11T03:51:08+00:00",
+  "records": 30
+ },
+ "facilities_nursing.json": {
+  "bytes": 28615,
+  "sha256": "832cd4aae70efd3a",
+  "downloaded_utc": "2026-10-11T03:51:08+00:00",
+  "records": 71
+ },
+ "facilities_schools.json": {
+  "bytes": 834253,
+  "sha256": "e7f845db5cd38899",
+  "downloaded_utc": "2026-10-11T03:51:08+00:00",
+  "records": 1541
+ },
+ "facilities_trauma.json": {
+  "bytes": 22911,
+  "sha256": "e85e5388306f965a",
+  "downloaded_utc": "2026-10-11T03:51:08+00:00",
+  "records": 56
+ },
  "hydrants.json": {
   "bytes": 10673566,
   "sha256": "bb268a779a7ed564",
@@ -40,6 +94,12 @@
   "sha256": "1018b1cac8f4ebdd",
   "downloaded_utc": "2026-10-11T03:35:35+00:00",
   "records": 93
+ },
+ "uri311.json": {
+  "bytes": 5084462,
+  "sha256": "a255953837d62a62",
+  "downloaded_utc": "2026-10-11T03:51:08+00:00",
+  "records": 11041
  },
  "valves.json": {
   "bytes": 51091075,

@@ -23,8 +23,8 @@ Verdict scale:
 | 4 | Customer accounts, `CAS/Customer_Operation_gx/1` | Who loses water | `customers.json` | Have |
 | 5 | Pressure-reducing stations, `/48` | Supply / zone boundaries | `prs_attrs.json` (93) | Have since tonight, **not used in model** |
 | 6 | Control valves, `/38` | (not in plan) Check whether any are isolation valves | `control_valves_attrs.json` (4,840) | Have since tonight. Types: blow-off 2,681, air release 1,684. Not isolation valves, correctly excluded. |
-| 7 | Critical facilities, `HPC/CriticalFacilities` | Care homes / schools hit | — | **MISSING** |
-| 8 | 311 water requests, Winter Storm Uri (11,041; 3,429 "Water Main Valve") | The plan's **only** independent check of the INOP flags | — | **MISSING** |
+| 7 | Critical facilities, `HPC/CriticalFacilities` | Care homes / schools hit | `facilities_*.json` | **UNUSABLE for public use**: licensed Data Axle data ("not to be distributed outside H-GAC"); no hospitals, schools or fire stations. City open-data replacements are stale (2020–21): CAVEAT. See `data_audit_extra.md`. |
+| 8 | 311 water requests, Winter Storm Uri (11,041; 3,429 "Water Main Valve") | The plan's **only** independent check of the INOP flags | `uri311.json` | Have. Data: CAVEAT (no date field; dates inferred as Feb 13–25 2021). **Test: null.** Valve requests are no closer to INOP valves than other water requests (−0.2 pp, 95% CI [−1.8, +1.5]). See `data_audit_extra.md`. |
 | 9 | 311 counts by ZIP | Context | — | **MISSING** |
 | 10 | News-reported breaks | Outage-size validation | `validation/news_breaks.csv`: 12 events, every row has a source URL; **only 3 have a count** | Have, thin |
 | 11 | HPW financial reports FY23–25 (independent totals) | Cross-check our counts | Figures in §3 below | Have (figures, not files) |
@@ -125,7 +125,7 @@ Verdict scale:
 ## 6. What we still can't support
 
 - **"The model matches real outages."** 3 news events with counts. That's an anecdote, not validation.
-- **"INOP flags reflect reality."** The planned 311 Winter Storm Uri check (#8) hasn't been downloaded.
+- **"INOP flags reflect reality."** The Winter Storm Uri 311 check (#8) found no association. The flags stay the City's own records, independently uncorroborated. Frame every number as "what the City's records imply".
 - **Anything about 2026.** Every water layer stops in June 2023.
 - **Exact customer counts.** Accounts ≠ active water accounts (+8%).
 
