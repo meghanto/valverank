@@ -10,6 +10,7 @@ Gushing phases use EPANET: a local window (RADIUS_M, boundary pinned to baseline
 head) for mains < BIG_IN, or the full city for transmission mains or when
 exact=True. Window accuracy vs full solve: validation/data_audit.md §10.
 """
+import json
 import os
 import pickle
 import tempfile
@@ -39,9 +40,16 @@ BIG_IN = 24
 EN_EMITTER, EN_INITSTATUS, EN_HEAD, EN_PRESSURE = 3, 4, 10, 11
 
 
+# scenario 'fixed': City records after repairing the planner's top N dead valves (pipeline/fixed.py)
+FIXED = BUILD / "fixed"
+FIXED_IDS = set(json.loads((FIXED / "ids.json").read_text())) if (FIXED / "ids.json").exists() else set()
+
+
 def closable(a, scen):
     if a.get("NORMALPOSITION") == 0:
         return True
+    if scen == "fixed":
+        return a.get("CONDITION") != "INOP" or a.get("OBJECTID") in FIXED_IDS
     return not (scen == "real" and a.get("CONDITION") == "INOP")
 
 
@@ -56,6 +64,11 @@ class Engine:
         N = pickle.load(open(BUILD / "network.pkl", "rb"))
         S = pickle.load(open(BUILD / "supply.pkl", "rb"))
         H = np.load(HYD / "hydraulic_index.npz")
+        self.scens = ("paper", "real")
+        if FIXED_IDS:
+            N["seg"]["fixed"] = np.load(FIXED / "seg.npy")
+            S["fixed"] = pickle.load(open(FIXED / "supply.pkl", "rb"))
+            self.scens = ("paper", "real", "fixed")
         self.N, self.S = N, S
         self.pieces, self.mains, self.valves, self.cut = N["pieces"], N["mains"], N["valves"], N["cut_valves"]
         P = len(self.pieces)
@@ -74,7 +87,7 @@ class Engine:
 
         # segment membership + segment graph (for downstream sets)
         self.members, self.sgraph, self.comp, self.src = {}, {}, {}, {}
-        for s in ("paper", "real"):
+        for s in self.scens:
             roots, comp = np.unique(N["seg"][s], return_inverse=True)
             self.comp[s] = comp
             mem = defaultdict(list)
@@ -280,31 +293,41 @@ class Engine:
         in_box = any(a <= lon <= c and b <= lat <= d for a, b, c, d in EXACT_BOXES)
         exact = bool(exact or self.diam[k] >= BIG_IN or in_box)
         emit = (int(self.pa[k]), emitter_coeff(self.diam[k], opening))
-        cs = {s: int(self.comp[s][k]) for s in ("paper", "real")}
+        cs = {s: int(self.comp[s][k]) for s in self.scens}
         seg_p = self.members["paper"][cs["paper"]]
-        seg_r = self.members["real"][cs["real"]]
         segset = set(seg_p)
-        ring_working, ring_dead = [], []
-        for q in seg_p:
-            for n in (self.pieces[q][1], self.pieces[q][2]):
-                vs = self.cut.get(n)
-                if not vs or all(o in segset for o in self.inc[n]):
-                    continue
-                if any(closable(self.valves[v]["attributes"], "real") for v in vs):
-                    ring_working.append(q)
-                else:
-                    ring_dead += [self.valves[v]["attributes"]["OBJECTID"] for v in vs]
+
+        def ring(scen):
+            """First ring of the paper segment: pieces next to a closable valve, and the dead valve ids."""
+            working, dead = [], []
+            for q in seg_p:
+                for n in (self.pieces[q][1], self.pieces[q][2]):
+                    vs = self.cut.get(n)
+                    if not vs or all(o in segset for o in self.inc[n]):
+                        continue
+                    if any(closable(self.valves[v]["attributes"], scen) for v in vs):
+                        working.append(q)
+                    else:
+                        dead += [self.valves[v]["attributes"]["OBJECTID"] for v in vs]
+            return working, sorted(set(dead))
+        rings = {s: ring(s) for s in self.scens if s != "paper"}
+        ring_working, ring_dead = rings["real"]
 
         gush = self._gush_out(k, [], emit, exact)
-        result = dict(piece=k, diameter=float(self.diam[k]), exact=bool(exact), dead_valves=sorted(set(ring_dead)),
+        result = dict(piece=k, diameter=float(self.diam[k]), exact=bool(exact), dead_valves=ring_dead,
+                      repaired_valves=sorted(set(ring_dead) & FIXED_IDS),
                       params=dict(opening=opening, t_first=t_first, t_dead=t_dead, t_repair=t_repair))
-        for s, seg_pieces in (("paper", seg_p), ("real", seg_r)):
+        gd_cache = {}
+        for s in self.scens:
+            seg_pieces = self.members[s][cs[s]]
             down = self._downstream(s, cs[s])
             iso_pieces = list(seg_pieces) + [q for d in down for q in self.members[s][d]]
             phases = [("gush", t_first, self._pieces_of_junctions(gush))]
-            if s == "real" and ring_dead:
-                gd = self._gush_out(k, ring_working, emit, exact)
-                phases.append(("gush_dead", t_dead, self._pieces_of_junctions(gd)))
+            if s != "paper" and rings[s][1]:
+                key = tuple(sorted(rings[s][0]))
+                if key not in gd_cache:
+                    gd_cache[key] = self._pieces_of_junctions(self._gush_out(k, rings[s][0], emit, exact))
+                phases.append(("gush_dead", t_dead, gd_cache[key]))
             # repair starts once the break is isolated, so a dead valve delays it by t_dead
             phases.append(("isolated", t_repair, iso_pieces))
             rows, ch = [], 0.0

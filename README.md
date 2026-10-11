@@ -41,9 +41,10 @@ Transmission mains (≥ 24″, 784 breaks/yr) cost 45.0 M customer-hours a year 
 3. **Supply loss** (`pipeline/supply.py`): closing a segment can also cut off segments whose only path to a water source runs through it. Sources are the City's 218 in-service plants, pump stations and storage tanks (layer 44). One articulation-point pass over the segment graph gives every segment's downstream loss; `pipeline/test_supply.py` checks it against brute force.
 4. **Pressure** (`pipeline/hydraulic.py`): an EPANET 2.2 model of the whole network (3 surface-water plants as fixed heads, 218 capped secondary sources, pressure-driven demand, elevation from hydrant records). The break is an emitter sized from the pipe bore. See `validation/data_audit.md` §10.
 5. **Timeline** (`server/engine.py`): gushing → still gushing because a first-ring valve is dead → isolated until repair. Each phase counts customers (pressure drops ≥ 15 psi below baseline while gushing; segment + downstream when isolated) and sums customer-hours. Small mains solve a 4 km window pinned to baseline heads (~200 ms, median error 0.5 psi vs the full solve, `pipeline/window.py`); mains ≥ 24″ solve the full city.
-6. **Batch + repair planner** (`pipeline/batch.py`, `pipeline/repair.py`): one break per isolation segment citywide, then a greedy pick of the dead valves whose repair recovers the most customer-hours.
-7. **Export** (`pipeline/export.py`): citywide vector tiles (PMTiles), segment tables and statistics.
-8. **Web** (`web/`, React + MapLibre) and **API** (`server/app.py`, FastAPI): click any pipe to break it, see paper vs real outage, the timeline with assumption sliders, and the repair planner.
+6. **Repaired scenario** (`pipeline/fixed.py`): the City's records after repairing the planner's top 100 dead valves, re-segmented and re-run for supply loss. Every break shows it as a third timeline; the overview links to breaks where it matters (`web/public/data/showcase.json`).
+7. **Batch + repair planner** (`pipeline/batch.py`, `pipeline/repair.py`): one break per isolation segment citywide, then a greedy pick of the dead valves whose repair recovers the most customer-hours.
+8. **Export** (`pipeline/export.py`): citywide vector tiles (PMTiles), segment tables and statistics.
+9. **Web** (`web/`, React + MapLibre) and **API** (`server/app.py`, FastAPI): click any pipe to break it, see paper vs real outage, the timeline with assumption sliders, and the repair planner.
 
 ```bash
 uv run --project pipeline python pipeline/ingest.py    # ~2 min, ~220 MB to data/raw

@@ -7,6 +7,7 @@ export type Scenario = { phases: Phase[]; customer_hours: number; segment_custom
 export type Run = {
   piece: number; diameter: number; exact: boolean; dead_valves: number[]; solve_ms: number; cached?: boolean
   params: Params; paper: Scenario; real: Scenario
+  fixed?: Scenario; repaired_valves?: number[]  // City records after the planner's top repairs (pipeline/fixed.py)
 }
 export type Params = { opening: number; t_first: number; t_dead: number; t_repair: number }
 
@@ -17,7 +18,12 @@ const LABEL: Record<Phase['phase'], string> = {
 }
 const fmt = (n: number) => Math.round(n).toLocaleString('en-US')
 
-export function Timeline({ piece, onShow }: { piece: number; onShow: (pieces: number[], kind: Phase['phase'] | null) => void }) {
+export function Timeline({ piece, onShow, onFixed, repaired }: {
+  piece: number
+  onShow: (pieces: number[], kind: Phase['phase'] | null) => void
+  onFixed?: (pieces: number[]) => void
+  repaired?: number
+}) {
   const [params, setParams] = useState<Params>({ opening: 0.25, t_first: 60, t_dead: 90, t_repair: 360 })
   const [run, setRun] = useState<Run | null>(null)
   const [err, setErr] = useState<string | null>(null)
@@ -46,6 +52,7 @@ export function Timeline({ piece, onShow }: { piece: number; onShow: (pieces: nu
     const i = sel >= 0 ? sel : ph.findIndex(p => p.phase !== 'isolated' && p.customers > 0)
     if (i >= 0) onShow(ph[i].pieces, ph[i].phase)
     else onShow([], null)
+    onFixed?.(run.fixed && run.fixed.customer_hours < run.real.customer_hours ? run.fixed.phases[run.fixed.phases.length - 1].pieces : [])
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [run, sel])
 
@@ -59,12 +66,16 @@ export function Timeline({ piece, onShow }: { piece: number; onShow: (pieces: nu
       <div className="ch">
         <div><span className="paper">{fmt(run.paper.customer_hours)}</span><small>customer-hours without water if every valve worked</small></div>
         <div><span className="real">{fmt(run.real.customer_hours)}</span><small>with the City's valve records{extra > 0 ? ` (+${fmt(extra)})` : ''}</small></div>
+        {run.fixed && (
+          <div><span className="fixed">{fmt(run.fixed.customer_hours)}</span>
+            <small>after the planner's top {repaired ?? ''} repairs{run.repaired_valves?.length ? ` (fixes ${run.repaired_valves.length} valve${run.repaired_valves.length > 1 ? 's' : ''} here)` : ' (none here)'}</small></div>
+        )}
       </div>
-      {(['paper', 'real'] as const).map(s => (
+      {(run.fixed ? (['paper', 'real', 'fixed'] as const) : (['paper', 'real'] as const)).map(s => (
         <div key={s} className="track">
-          <div className={`track-label ${s}`}>{s === 'paper' ? 'Every valve works' : 'City valve records'}</div>
+          <div className={`track-label ${s}`}>{s === 'paper' ? 'Every valve works' : s === 'real' ? 'City valve records' : `After top ${repaired ?? ''} repairs`}</div>
           <div className="bar">
-            {run[s].phases.map((p, i) => (
+            {run[s]!.phases.map((p, i) => (
               <button
                 key={i}
                 className={`seg ${p.phase} ${s === 'real' && sel === i ? 'sel' : ''}`}

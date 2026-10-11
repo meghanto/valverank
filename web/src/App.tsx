@@ -47,6 +47,7 @@ type Break = {
 type ValveProps = { id: number; c: string; r: string | null; cy: number | null; d: number | null; iy: number | null }
 
 const fmt = (n: number) => n.toLocaleString('en-US')
+type Showcase = { repaired: number; cases: { piece: number; lon: number; lat: number; label: string }[] }
 
 /** Screen distance (px) from (x, y) to a rendered line feature. */
 function pixelDistance(map: maplibregl.Map, f: maplibregl.MapGeoJSONFeature, x: number, y: number) {
@@ -75,10 +76,12 @@ export default function App() {
   const [brk, setBrk] = useState<Break | null>(null)
   const [loading, setLoading] = useState(true)
   const [repair, setRepair] = useState<RepairData | null>(null)
+  const [showcase, setShowcase] = useState<Showcase | null>(null)
 
   useEffect(() => {
     fetch(`${DATA}stats.json`).then(r => r.json()).then(setStats)
     fetch(`${DATA}repair.json`).then(r => r.json()).then(setRepair).catch(() => setRepair(null))
+    fetch(`${DATA}showcase.json`).then(r => r.json()).then(setShowcase).catch(() => setShowcase(null))
     fetch(`${DATA}segments.json`).then(r => r.json()).then(s => (segsRef.current = s))
     fetch(`${DATA}valves_inop.json`)
       .then(r => r.json())
@@ -116,6 +119,10 @@ export default function App() {
       map.addLayer({
         id: 'real-hl', type: 'line', source: 'city', 'source-layer': 'pipes', filter: ['==', ['get', 'sr'], -1],
         paint: { 'line-color': '#ff4f32', 'line-width': ['interpolate', ['linear'], ['zoom'], 11, 2.5, 16, 6] },
+      })
+      map.addLayer({
+        id: 'fixed-hl', type: 'line', source: 'city', 'source-layer': 'pipes', filter: ['in', ['get', 'k'], ['literal', []]],
+        paint: { 'line-color': '#3ddc97', 'line-width': ['interpolate', ['linear'], ['zoom'], 11, 2.5, 16, 6] },
       })
       map.addLayer({
         id: 'paper-hl', type: 'line', source: 'city', 'source-layer': 'pipes', filter: ['==', ['get', 'sp'], -1],
@@ -195,6 +202,21 @@ export default function App() {
     map.setFilter('pressure-hl', ['in', ['get', 'k'], ['literal', kind && kind !== 'isolated' ? pieces : []]])
   }
 
+  function showFixed(pieces: number[]) {
+    mapRef.current?.setFilter('fixed-hl', ['in', ['get', 'k'], ['literal', pieces]])
+  }
+
+  /** Jump to a showcase break: fly there, then break the pipe with that piece id once its tile is loaded. */
+  function goTo(c: { piece: number; lon: number; lat: number }) {
+    const map = mapRef.current
+    if (!map) return
+    map.flyTo({ center: [c.lon, c.lat], zoom: 15.5, duration: 1200 })
+    map.once('idle', () => {
+      const f = map.querySourceFeatures('city', { sourceLayer: 'pipes', filter: ['==', ['get', 'k'], c.piece] })[0]
+      if (f) breakAt([c.lon, c.lat], f.properties as { k: number; sp: number; sr: number; d: number | null; m: string | null; y: number | null })
+    })
+  }
+
   function breakAt(lngLat: [number, number], p: { k: number; sp: number; sr: number; d: number | null; m: string | null; y: number | null }) {
     const map = mapRef.current
     const segs = segsRef.current
@@ -216,6 +238,7 @@ export default function App() {
     map.setFilter('valves-dead', ['in', ['get', 'id'], ['literal', []]])
     map.setFilter('hydrants-hl', ['==', ['get', 'sp'], p.sp])
     map.setFilter('pressure-hl', ['in', ['get', 'k'], ['literal', []]])
+    showFixed([])
     const b: Break = { k: p.k, lngLat, sp: p.sp, sr: p.sr, diameter: p.d, material: p.m, year: p.y, stage: 'paper' }
     setBrk(b)
     timer.current = window.setTimeout(() => {
@@ -233,6 +256,7 @@ export default function App() {
     window.clearTimeout(timer.current)
     setBrk(null)
     showPressure([], null)
+    showFixed([])
     if (!map) return
     ;(map.getSource('break') as GeoJSONSource).setData({ type: 'FeatureCollection', features: [] })
     for (const id of ['paper-hl', 'real-hl']) map.setFilter(id, ['==', ['get', id === 'paper-hl' ? 'sp' : 'sr'], -1])
@@ -268,6 +292,14 @@ export default function App() {
           </section>
         )}
         {!brk && repair && repair.valves.length > 0 && <Repair data={repair} onChange={showRepairs} />}
+        {!brk && showcase && (
+          <section className="showcase">
+            <h2>What the top {showcase.repaired} repairs change</h2>
+            {showcase.cases.map(c => (
+              <button key={c.piece} onClick={() => goTo(c)}>{c.label}</button>
+            ))}
+          </section>
+        )}
 
         {brk && paper && real && (
           <section className="break">
@@ -305,7 +337,7 @@ export default function App() {
                 <p className="ok">Every valve around this break is recorded as working.</p>
               )
             )}
-            {brk.stage === 'real' && <Timeline piece={brk.k} onShow={showPressure} />}
+            {brk.stage === 'real' && <Timeline piece={brk.k} onShow={showPressure} onFixed={showFixed} repaired={showcase?.repaired} />}
             <button className="reset" onClick={clearBreak}>Back to overview</button>
           </section>
         )}
@@ -318,6 +350,7 @@ export default function App() {
       <div className="legend">
         <span><i style={{ background: '#4fb3ff' }} /> outage if every valve worked</span>
         <span><i style={{ background: '#ff4f32' }} /> outage with recorded broken valves</span>
+        <span><i style={{ background: '#3ddc97' }} /> after top {showcase?.repaired ?? 100} repairs</span>
         <span><i className="round" style={{ background: '#f5f3ee' }} /> valves crews close</span>
         <span><b style={{ color: '#ff4f32' }}>✕</b> recorded inoperable</span>
         <span><i style={{ background: '#ffb000' }} /> loses ≥15 psi while gushing</span>

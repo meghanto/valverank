@@ -1,0 +1,23 @@
+{
+ "repaired": 100,
+ "cases": [
+  {
+   "piece": 157028,
+   "lon": -95.271996,
+   "lat": 29.826696,
+   "label": "6\u2033 main: one dead valve cuts off 2,496 customers instead of 5"
+  },
+  {
+   "piece": 84461,
+   "lon": -95.28092,
+   "lat": 29.807144,
+   "label": "8\u2033 main: three dead valves cut off 2,496 customers instead of 9"
+  },
+  {
+   "piece": 132867,
+   "lon": -95.28367,
+   "lat": 29.682041,
+   "label": "60\u2033 main: a dead valve keeps it gushing 90 more minutes (194k customers losing pressure)"
+  }
+ ]
+}

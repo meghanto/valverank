@@ -82,3 +82,8 @@ footer { margin-top: auto; font-size: 11px; color: var(--muted); line-height: 1.
 .repair .split li + li { border-left-color: #ffb000; }
 .repair .split b { font-variant-numeric: tabular-nums; margin-right: 4px; }
 .repair .split span { display: block; font-size: 11px; opacity: 0.6; }
+.track-label.fixed { color: #3ddc97; }
+.showcase h2 { font-size: 15px; margin: 18px 0 8px; }
+.showcase button { display: block; width: 100%; text-align: left; margin: 0 0 6px; padding: 8px 10px; font: inherit; font-size: 13px;
+  color: inherit; background: transparent; border: 1px solid #3ddc97; border-radius: 6px; cursor: pointer; }
+.showcase button:hover { background: rgba(61, 220, 151, 0.12); }
