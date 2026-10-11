@@ -8,7 +8,7 @@
 :root {
   --font-body: 'National Park', 'National Park Deck', system-ui, -apple-system, sans-serif;
   --font-display: 'Union Gothic', 'National Park', sans-serif;
-  --font-num: 'Union Gothic Numbers', 'Union Gothic', 'National Park', sans-serif;
+  --font-num: 'Union Gothic', 'National Park', sans-serif;  /* the deck's numerals cut is too wide for panel columns */
   --font-mono: 'Katwijk Mono', ui-monospace, 'SF Mono', monospace;
   --bg: #111318;
   --panel: #171a21;
