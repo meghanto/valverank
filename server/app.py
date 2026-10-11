@@ -98,6 +98,41 @@ def nearest(lon: float, lat: float):
     return {"piece": k, "distance_m": round(float(d), 1)}
 
 
+@app.get("/history")
+def history():
+    """Real 311 water-break calls from Tiger Data (pipeline/break_calls.py): monthly open/closed counts from the
+    weekly continuous aggregate, observed open->close hours, and break share by main size vs pipe-length share."""
+    global _HISTORY
+    if _HISTORY is None:
+        conn = store._conn
+        if conn is None:
+            raise HTTPException(503, "Tiger Data not configured")
+        with conn.cursor() as c:
+            c.execute("""SELECT time_bucket('1 month', week)::date, sum(calls)::int, sum(closed_calls)::int
+                         FROM break_calls_weekly GROUP BY 1 ORDER BY 1""")
+            months = [{"month": str(m), "calls": n, "closed": k} for m, n, k in c.fetchall()]
+            c.execute("""SELECT count(*), count(closed), min(opened)::date, max(opened)::date FROM break_calls""")
+            total, closed, first, last = c.fetchone()
+            c.execute("""SELECT percentile_cont(array[.25,.5,.75]) WITHIN GROUP (ORDER BY extract(epoch FROM closed - opened) / 3600), count(*)
+                         FROM break_calls WHERE type = 'Water Leak' AND closed IS NOT NULL""")
+            q, n_closed_leaks = c.fetchone()
+            c.execute("""SELECT size, sum(calls)::int FROM break_calls_weekly WHERE type = 'Water Leak' AND size <> 'unsnapped' GROUP BY 1""")
+            by_size = dict(c.fetchall())
+        L = np.array([p[4] for p in ENGINE.pieces])
+        _HISTORY = {
+            "source": "City of Houston 311 water-break dashboard (EMC/WaterBreak_Dashboard), snapshot frozen 2024-06-20",
+            "calls": total, "closed": closed, "first": str(first), "last": str(last), "months": months,
+            "leak_hours_to_close": {"p25": round(q[0], 1), "median": round(q[1], 1), "p75": round(q[2], 1), "n": n_closed_leaks},
+            "assumed_repair_hours": 6,
+            "leak_share_transmission": round(by_size.get("transmission", 0) / max(sum(by_size.values()), 1), 3),
+            "pipe_length_share_transmission": round(float(L[ENGINE.diam >= 24].sum() / L.sum()), 3),
+        }
+    return _HISTORY
+
+
+_HISTORY = None
+
+
 class Ask(BaseModel):
     q: str
 

@@ -4,6 +4,7 @@ import type { GeoJSONSource, MapMouseEvent } from 'maplibre-gl'
 import 'maplibre-gl/dist/maplibre-gl.css'
 import { Timeline, API, type Phase, type Params } from './Timeline'
 import { Repair, type RepairData } from './Repair'
+import { History } from './History'
 import workerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?url'
 import { Protocol } from 'pmtiles'
 
@@ -316,6 +317,7 @@ export default function App() {
           </section>
         )}
         {!brk && repair && repair.valves.length > 0 && <Repair data={repair} onChange={showRepairs} />}
+        {!brk && <History />}
         {!brk && showcase && (
           <section className="showcase">
             <h2>What the top {showcase.repaired} repairs change</h2>
