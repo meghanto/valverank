@@ -18,7 +18,8 @@ Model
     isolate the lead, not the main (data_audit.md D1).
   - Abandoned/proposed and non-potable mains are dropped (D4).
   - A dead end within TEE_M of another pipe's interior is an unnoded tee: the
-    other pipe is split there and joined to the dead end (D2).
+    other pipe is split there and joined to the dead end (D2). Large mains get
+    TEE_BIG_M: the City's transmission backbone has 1-10 m gaps at vaults (D6).
   - Pieces that touch at a non-cut node are joined (union-find).
 
 Outputs data/build/network.pkl for export.py.
@@ -39,6 +40,8 @@ RAW, BUILD = ROOT / "data" / "raw", ROOT / "data" / "build"
 SNAP_M = 1.0        # valve must lie this close to a main to count as a main valve
 SNAP_INLINE_M = 3.0  # same, for valves the City records as in-line (D3)
 TEE_M = 1.0         # dead end this close to another pipe's interior = unnoded tee
+TEE_BIG_M = 10.0    # same for transmission: >= BIG_IN main ending this close to another >= BIG_IN main (D6)
+BIG_IN = 24
 INLINE_USE = {"INL", "IN LINE", "IN LINE - SLF"}
 LEAD_USE = {"HYD LEAD", "HL", "SERVICE", "SERV", "FIRE SERVICE"}
 HYDRANT_VALVE_SUBTYPE = 33
@@ -146,22 +149,34 @@ def main():
     own = defaultdict(set)
     for pi, (a_n, b_n) in enumerate(ends):
         own[a_n].add(pi); own[b_n].add(pi)
+    pdiam = np.array([float(mains[mi]["attributes"].get("DIAMETER") or 0) for mi, _, _ in pipes])
     dangling = [n for n, c in deg.items() if c == 1]
     _, dnear = samp_tree.query(node_xy[dangling], k=8)
-    n_tee = 0
-    for n, cand in zip(dangling, dnear):
-        p = node_xy[n]
-        best = (TEE_M, None, None, None)
-        for si in set(int(samp_pipe[j]) for j in cand) - own[n]:
+    n_tee = n_big = 0
+
+    def nearest(p, cands, maxd, exclude):
+        best = (maxd, None, None, None)
+        for si in cands - exclude:
             c = pipes[si][1]
             for s in range(len(c) - 1):
                 d, t = seg_dist(p, c[s], c[s + 1])
                 if d <= best[0]:
                     best = (d, si, s, t)
+        return best
+
+    for n, cand in zip(dangling, dnear):
+        p = node_xy[n]
+        best = (None, None)
+        if pdiam[next(iter(own[n]))] >= BIG_IN:  # transmission: jump vault gaps to another big main
+            bigc = {int(samp_pipe[j]) for j in samp_tree.query_ball_point(p, TEE_BIG_M)}
+            best = nearest(p, {si for si in bigc if pdiam[si] >= BIG_IN}, TEE_BIG_M, own[n])
+        if best[1] is None:
+            best = nearest(p, set(int(samp_pipe[j]) for j in cand), TEE_M, own[n])
         if best[1] is not None:
             pipe_cuts[best[1]].append((best[2], best[3], ("J", n)))
             n_tee += 1
-    print("unnoded tees joined:", n_tee)
+            n_big += best[0] > TEE_M
+    print("unnoded tees joined:", n_tee, "of which transmission gaps (1-10 m):", n_big)
 
     node_valves = defaultdict(list)    # node -> valve idx
     valve_place = {}

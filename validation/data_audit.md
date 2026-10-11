@@ -182,3 +182,38 @@ About 900 Houston water-break articles, 2010–2026: sitemaps of ABC13, Houston 
   - **NB16** (2024): a planned shutoff with published street boundaries. Usable for an area check, not a count check.
 - Counts appear only when an HPW spokesperson quotes one to a reporter. Planned-shutoff notices go out by door hanger, Nextdoor and 311, and aren't archived.
 - **Conclusion:** public sources can't validate outage size. The realistic route is a public-records request to HPW for work orders with valve closures and customers out of service. That's the "next step" for the pitch.
+
+## 10. Pressure model (EPANET 2.2, uncalibrated)
+
+`pipeline/hydraulic.py` builds `data/build/houston.inp`: 269k junctions, 290k pipes. One steady-state solve takes 2–5 s.
+
+**Data defect D6, found while building it:** the transmission backbone has gaps. 122 of the 135 dead ends on ≥36″ mains are 1–10 m from another large main (vaults and fittings not noded). `network.py` now joins ≥24″ dead ends to a ≥24″ main within 10 m (256 joins). Segments changed slightly (paper 72,253 → 72,171).
+
+**Assumptions** (constants at the top of `hydraulic.py`):
+
+| Input | Value | Basis |
+|---|---|---|
+| Surface-water plants (3) | Fixed head, ground + 75 psi | Located from the network itself (dead ends of ≥84″ mains); East matches the geocoded plant address |
+| Other sources (218: groundwater plants, pump stations, tanks) | Ground + 65 psi, capped together at `GW_SHARE` of demand (FCV + check valve) | Assumed. Swept 0.1 / 0.25 / 0.5 |
+| Demand | 0.27 gpm per account (≈390 gal/day) | Assumed |
+| Elevation | Nearest hydrant's `DEMELEV2018` (m) | City data |
+| Roughness | Hazen-Williams C by material | Textbook values |
+| Pressure-reducing stations, pump curves, tank levels | Not modeled | Not public |
+
+**Baseline at GW_SHARE 0.25:**
+- Median pressure 55 psi; 93% of junctions are within 40–80 psi.
+- 3.7% are below 20 psi with no break at all. These sit at the network fringes and are excluded from break counts, which count only junctions newly below 20.
+
+**Known-answer test: Clinton Dr 96″, Feb 2020.** Reported: "Homes, businesses and the Texas Medical Center had low water pressure or no water at all", followed by a citywide boil notice.
+
+| Model state | GW 0.1 | GW 0.25 | GW 0.5 |
+|---|---|---|---|
+| Isolated (segment closed) | — | 0 customers below 20 psi; 340k drop more than 1 psi | — |
+| Gushing, 25% of bore | 284k customers below 20 psi | 254k | 188k |
+| Gushing, full bore | 435k | 431k | 423k |
+
+**Verdict:** the model reproduces a citywide pressure collapse from the uncontrolled break, and the result holds across the swept assumptions. It does **not** reproduce that collapse once the break is isolated. So the damage happens while the break gushes, which is the window that broken valves extend.
+
+**Tidwell & Antoine 16″** (reported 2,000; another report says 100+), full-bore rupture: 8–10 customers below 20 psi, ~1,230 drop more than 10 psi. **Not a match** for "without water". Beltway 8 12″ (reported 80), full bore: 0 below 20 psi, 2,052 drop more than 10 psi.
+
+**What can be claimed:** an uncalibrated pressure model that reproduces the 2020 citywide event under every tested assumption. **What can't:** neighborhood-scale pressure predictions.
