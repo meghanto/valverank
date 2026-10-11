@@ -12,6 +12,7 @@ is split evenly over its still-dead ring valves (so 2-valve rings aren't invisib
 Writes web/public/data/repair.json: curve + ordered valves (id, lon, lat, gain).
 """
 import json
+import os
 import pickle
 from collections import defaultdict
 from pathlib import Path
@@ -34,28 +35,61 @@ def fix_timing(r, t_first=60, t_dead=90, t_repair=360):
 
 
 def main():
-    rows = [json.loads(l) for l in open(ROOT / "data/build/batch.jsonl") if l.strip()]
+    full_b = ROOT / "data/build/batch_b.jsonl"  # complete run on hydraulic model B (cluster, all 72,171 segments)
+    src = full_b if full_b.exists() else ROOT / "data/build/batch.jsonl"
+    rows = [json.loads(l) for l in open(src) if l.strip()]
     rows = {r["seg"]: r for r in rows if "error" not in r}  # one row per segment (resumed runs may repeat)
     # transmission mains re-run on the corrected hydraulic model (audit §13); their pressure phase dominates.
     # Distribution rows keep the earlier run: gushing is ~1% of their customer-hours.
     trans = ROOT / "data/build/batch_b_trans.jsonl"
-    if trans.exists():
+    if trans.exists() and src != full_b:
         new = [json.loads(l) for l in open(trans) if l.strip()]
         rows.update({r["seg"]: r for r in new if "error" not in r})
     rows = [fix_timing(r) for r in rows.values()]
     N = pickle.load(open(ROOT / "data/build/network.pkl", "rb"))
-    total_len = sum(p[4] for p in N["pieces"])
+    total_len = plain_len = sum(p[4] for p in N["pieces"])
     covered_len = sum(r["length_m"] for r in rows)
     vxy = {v["attributes"]["OBJECTID"]: (v["geometry"]["x"], v["geometry"]["y"]) for v in N["valves"]}
 
+    # size class by the break pipe's diameter (not r["exact"], which also covers Kingwood full solves)
+    cls = {r["seg"]: "transmission" if float(N["mains"][N["pieces"][r["piece"]][0]].get("DIAMETER") or 0) >= 24
+           else "distribution" for r in rows}
+    # break-rate weighting: pipe length (default), or H2O_RATE=311 to match the share of 311 leak calls on
+    # mains >= 24 in (pipeline/break_calls.py: 77 of 2,378 snapped leak calls = 3.24%)
+    # break rate per segment: pipe length x relative rate of each piece's diameter class (pipeline/break_rates.py:
+    # 311 leak calls blended with length). H2O_RATE=length restores plain length weighting.
+    rates_f = ROOT / "data/build/break_rates.json"
+    mode = os.environ.get("H2O_RATE", "blended" if rates_f.exists() else "length")
+    wlen = {r["seg"]: r["length_m"] for r in rows}
+    if mode == "blended":
+        br = json.loads(rates_f.read_text())
+        rel = np.asarray(br["relative_rate"])
+        dia = np.array([float(N["mains"][p[0]].get("DIAMETER") or 8) for p in N["pieces"]])
+        L = np.array([p[4] for p in N["pieces"]])
+        w = L * rel[np.digitize(dia, br["edges_in"])]
+        segw = np.bincount(np.unique(N["seg"]["paper"], return_inverse=True)[1], weights=w)
+        segL = np.bincount(np.unique(N["seg"]["paper"], return_inverse=True)[1], weights=L)
+        root_ix = {int(s): i for i, s in enumerate(np.unique(N["seg"]["paper"]))}
+        # batch rows key segments by the paper root id; scale each segment's length by its weighted/plain ratio
+        wlen = {r["seg"]: r["length_m"] * segw[root_ix[r["seg"]]] / max(segL[root_ix[r["seg"]]], 1e-9) for r in rows}
+        total_len = sum(wlen.values()) * total_len / covered_len  # keep the overall break total at BREAKS_PER_YEAR
+
     value, ring = {}, {}
+    mech = defaultdict(float)
     base_paper = base_real = 0.0
     split = {c: {"breaks_per_year": 0.0, "paper": 0.0, "real": 0.0, "gushing_paper": 0.0} for c in ("distribution", "transmission")}
     for r in rows:
-        rate = BREAKS_PER_YEAR * r["length_m"] / total_len
+        rate = BREAKS_PER_YEAR * wlen[r["seg"]] / total_len
         base_paper += r["paper_ch"] * rate
         base_real += r["real_ch"] * rate
-        c = split["transmission" if r["exact"] else "distribution"]  # exact = diameter >= 24 in
+        # mechanism split (default t_first 60 min, t_dead 90 min): shut-off time is connectivity only (robust);
+        # gushing time comes from the pressure model
+        shut_p, shut_r = r["paper_ch"] - r["gush"], r["real_ch"] - r["gush"] - 1.5 * r["gush_dead"]
+        mech["shutoff"] += (shut_r - shut_p) * rate
+        mech["gushing"] += 1.5 * r["gush_dead"] * rate
+        if cls[r["seg"]] == "distribution":
+            mech["nbhd_shut_paper"] += shut_p * rate; mech["nbhd_shut_real"] += shut_r * rate
+        c = split[cls[r["seg"]]]
         c["breaks_per_year"] += rate; c["paper"] += r["paper_ch"] * rate; c["real"] += r["real_ch"] * rate
         c["gushing_paper"] += r["gush"] * rate  # t_first = 60 min, so customers = customer-hours
         if r["dead"] and r["real_ch"] > r["paper_ch"]:
@@ -85,7 +119,10 @@ def main():
         curve.append(round(recovered))
     out = {
         "breaks_per_year": BREAKS_PER_YEAR,
-        "coverage_share_of_pipe_length": round(covered_len / total_len, 3),
+        "rate_weighting": mode,
+        "dead_valve_cost_by_mechanism": {"shutoff": round(mech["shutoff"]), "gushing": round(mech["gushing"])},
+        "neighborhood_shutoff": {"paper": round(mech["nbhd_shut_paper"]), "real": round(mech["nbhd_shut_real"])},
+        "coverage_share_of_pipe_length": round(covered_len / plain_len, 3),
         "customer_hours_per_year": {"paper": round(base_paper), "real": round(base_real)},
         "dead_valve_cost_per_year": round(base_real - base_paper),
         "by_class": {c: {k: round(v) for k, v in d.items()} for c, d in split.items()},

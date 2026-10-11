@@ -41,10 +41,11 @@ Fewer segments means bigger ones: dead valves merge neighboring segments.
 4. The broken-valve flags are the City's records. An independent check (Winter Storm Uri 311 valve requests) found no association, so frame every number as "what the City's records imply".
 
 ## Why it matters (the pitch number)
-Every isolation segment broken once, weighted by pipe length × 11,119 breaks/yr:
-- Neighborhood mains: dead valves multiply customer-hours without water by **2.4**, 1.03 M → 2.49 M a year.
-- Citywide dead-valve cost: **3.75 M customer-hours a year** = 1.46 M longer shut-offs on neighborhood mains (City records + connectivity, robust) + 2.29 M extra gushing on large mains (pressure model, uncalibrated). Say the split before a judge asks.
-- Repair planner: the top 10 dead valves recover 33% of that cost, top 100 61%, top 500 76%. The top valves sit on large mains, so this rests on the pressure model.
-- Don't quote the transmission totals (45 M) as a headline. They come from modeled low pressure while a big main gushes, they depend on the break-size and response-time assumptions, and no valve repair changes them.
+Every isolation segment broken once; 11,119 breaks/yr spread by pipe length × a break rate per pipe size from 3,495 real 311 calls:
+- **Pitch line:** dead valves multiply the time Houston neighborhoods spend shut off by **2.4** (1.07 M → 2.57 M customer-hours a year). Connectivity + City records only; no pressure model involved.
+- Citywide dead-valve cost: **4.26 M customer-hours a year** = 1.55 M longer shut-offs (robust) + 2.71 M longer gushing (pressure model, uncalibrated). Say the split before a judge asks.
+- Repair planner: the top 10 dead valves recover 17%, top 100 41%, top 500 72%.
+- Showcase: one dead valve (on the top-100 list) turns a 5-customer shutoff into 2,496 customers; repairing it restores 5.
+- Don't quote gushing totals for large mains as a headline: they come from modeled low pressure, depend on break size and response time, and no valve repair changes them.
 
 **[Cost figures unverified: C will source them before the pitch.]** Replacing a main costs on the order of $1M per mile. Repairing a valve costs a few thousand dollars. The repair planner picks the valves whose repair shrinks outages the most.

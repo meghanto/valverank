@@ -13,15 +13,15 @@ Shutoff runs this on Houston's real water network (290,959 pipe segments, 166,36
 | Fire hydrants out, average break | 1.6 | **3.5** |
 | Largest single outage | 1,683 customers | **2,496 customers** |
 
-**Customer-hours without water per year** (pressure model + timeline, one simulated break per isolation segment, all 72,171 segments, weighted by pipe length × 11,119 breaks/yr):
+**Customer-hours without water per year** (one simulated break per isolation segment, all 72,171 segments, on the full pressure model; 11,119 breaks/yr spread by pipe length × a break rate per pipe size estimated from 3,495 real 311 calls):
 
 | | Every valve works | City-recorded valve status |
 |---|---|---|
-| Neighborhood mains (< 24″, 10,335 breaks/yr) | 1.03 M | **2.49 M** |
-| Citywide dead-valve cost | — | **3.75 M** = 1.46 M longer shut-offs (neighborhood mains) + 2.29 M extra gushing (large mains, pressure model) |
-| Repair the planner's top 10 / 100 / 500 / 3,000 dead valves | | recovers 33% / 61% / 76% / 92% of that cost |
+| Shut-off time, neighborhood mains (< 24″) | 1.07 M | **2.57 M (×2.4)** |
+| Citywide dead-valve cost | — | **4.26 M** = 1.55 M longer shut-offs (City records + connectivity) + 2.71 M longer gushing (pressure model) |
+| Repair the planner's top 10 / 100 / 500 dead valves | | recovers 17% / 41% / 72% of that cost |
 
-Transmission mains (≥ 24″, 784 breaks/yr) cost 45.0 M customer-hours a year even if every valve worked: customers losing ≥ 15 psi while the break gushes. That figure comes from the uncalibrated pressure model and the assumed break size and response time, and no valve repair changes it, so it is reported separately. Their dead valves add 2.29 M (gushing lasts longer), which is included in the dead-valve cost above and labelled as model-based in the app.
+Gushing time that no valve repair changes (customers losing ≥ 15 psi while a break flows) is reported separately: it comes from the uncalibrated pressure model and the assumed break size and response time. Break rate by pipe size: small mains break ~1.65× more often per km than average, 42″+ mains ~0.55× (311 data blended with length, `pipeline/break_rates.py`).
 
 78% of valves on mains were last inspected five or more years ago (industry guidance: exercise every valve within five years).
 

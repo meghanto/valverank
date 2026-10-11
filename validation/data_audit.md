@@ -301,3 +301,12 @@ Change (`pipeline/hydraulic.py`, new flags; defaults byte-identical):
 | Total | 11,119 | 45,987,695 | 49,736,309 | 3,748,614 |
 
 Transmission totals rose from 12.4 M to 45.0 M because the 15 psi-drop metric counts far more customers than "newly below 20 psi" (e.g. 54″ piece 10256: 6,726 → 174,792). Repair planner on the merged rows: top 10 / 50 / 100 / 500 / 1,000 / 3,000 recover 33% / 55% / 61% / 76% / 82% / 92%; the top of the list is dominated by valves on large mains, so it rests on the pressure model. The app shows the split (robust shut-off part vs model-based gushing part).
+
+## 15. Final numbers (2026-10-11 11:00): full model-B batch, blended break rates
+
+- **Batch:** all 72,171 segments re-run on hydraulic model B with the 15 psi metric on the UH cluster (7 nodes × 34 workers, 8.5 min; `data/build/batch_b.jsonl`). This replaces the mixed model-A / model-B provenance of §14.
+- **Classification fix:** the planner split "distribution vs transmission" by the `exact` flag, which also covers Kingwood full solves; it now uses the break pipe's diameter.
+- **Break rate by pipe size** (`pipeline/break_rates.py`): 311 leak calls per km by diameter class, blended with length-proportional weighting (Poisson–gamma, prior worth 25 calls). Relative rate ≤4″ 1.65, 6″ 1.29, 8″ 1.02, 10–12″ 0.84, 14–20″ 0.74, 24–36″ 0.69, 42″+ 0.55. Share of breaks on ≥ 24″ mains: 6.4% by length → 4.0% blended (3.2% raw 311). The 311 data is a snapshot of mostly open calls (§12); its size mix is assumed unbiased.
+- **Mechanism split:** dead-valve cost 4,261,775 c-h/yr = 1,548,697 longer shut-offs (connectivity only) + 2,713,078 longer gushing (pressure model). Neighborhood shut-off customer-hours 1,072,315 → 2,568,385 (×2.40), stable across weightings (×2.39 under both length and raw-311 weighting).
+- **Kingwood:** its capped local supply makes a 25%-bore break drop pressure across the whole area while gushing (~3 M c-h/yr in the gushing component). This is a model-B assumption effect (source caps), not observed.
+- Planner: top 10 / 50 / 100 / 500 / 1,000 / 3,000 recover 17% / 32% / 41% / 72% / 80% / 91%. The top-100 repaired scenario and the presolve cache were rebuilt for the new ranking (91 of the previous top 100 remain).
