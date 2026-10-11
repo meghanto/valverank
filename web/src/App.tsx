@@ -221,18 +221,11 @@ export default function App() {
         paint: { 'circle-radius': ['interpolate', ['linear'], ['zoom'], 9, 2.5, 16, 7], 'circle-color': '#3ddc97',
                  'circle-stroke-color': '#111318', 'circle-stroke-width': 1 },
       })
-      map.once('idle', () => setLoading(false))
+      // loading ends when the network tiles arrive (not on 'idle': the break pulse keeps the map busy)
+      const ready = () => { if (map.isSourceLoaded('city')) { setLoading(false); map.off('sourcedata', ready) } }
+      map.on('sourcedata', ready)
+      map.once('idle', () => setLoading(false))  // also fine now: nothing animates until a break is on the map
 
-      // the break marker's ring expands while a break is on the map: one authored motion, state-bearing
-      const pulse = (t: number) => {
-        const ph = (t % 1600) / 1600
-        if (map.getLayer('break-pulse')) {
-          map.setPaintProperty('break-pulse', 'circle-radius', 10 + 22 * (1 - Math.pow(1 - ph, 3)))
-          map.setPaintProperty('break-pulse', 'circle-stroke-opacity', 0.8 * (1 - ph))
-        }
-        pulseRef.current = requestAnimationFrame(pulse)
-      }
-      pulseRef.current = requestAnimationFrame(pulse)
 
       // hover: nearest pipe within reach lights up with a label, so the click target is never a guess
       let hovered: number | null = null, pending = false
@@ -270,7 +263,7 @@ export default function App() {
         breakAt(snapToPipe(map, f, e.point.x, e.point.y), pipeProps(f))
       })
     })
-    return () => map.remove()
+    return () => { cancelAnimationFrame(pulseRef.current); map.remove() }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
@@ -333,6 +326,23 @@ export default function App() {
     })
   }
 
+  /** The break marker's ring expands only while a break is on the map: one state-bearing motion, no idle repaint. */
+  function startPulse() {
+    const map = mapRef.current
+    if (!map || pulseRef.current) return
+    const step = (t: number) => {
+      const ph = (t % 1600) / 1600
+      map.setPaintProperty('break-pulse', 'circle-radius', 10 + 22 * (1 - Math.pow(1 - ph, 3)))
+      map.setPaintProperty('break-pulse', 'circle-stroke-opacity', 0.8 * (1 - ph))
+      pulseRef.current = requestAnimationFrame(step)
+    }
+    pulseRef.current = requestAnimationFrame(step)
+  }
+  function stopPulse() {
+    cancelAnimationFrame(pulseRef.current)
+    pulseRef.current = 0
+  }
+
   function breakAt(lngLat: [number, number], p: PipeProps) {
     const map = mapRef.current
     const segs = segsRef.current
@@ -358,6 +368,7 @@ export default function App() {
     map.setFilter('pressure-hl', NONE)
     showFixed([])
     setRun(null)
+    startPulse()
     const b: Break = { k: p.k, lngLat, sp: p.sp, sr: p.sr, diameter: p.d, material: p.m, year: p.y, stage: 'paper' }
     setBrk(b)
     timer.current = window.setTimeout(() => {
@@ -376,6 +387,7 @@ export default function App() {
     window.clearTimeout(timer.current)
     setBrk(null)
     setRun(null)
+    stopPulse()
     setInitial(undefined)
     showPressure([], null)
     showFixed([])
