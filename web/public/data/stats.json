@@ -1,23 +1,23 @@
 {
  "paper": {
-  "segments": 72253,
+  "segments": 72171,
   "expected_customers_per_break": 13.1,
   "expected_customers_per_break_with_downstream": 16.3,
-  "share_pipe_length_with_downstream_loss": 0.136,
+  "share_pipe_length_with_downstream_loss": 0.137,
   "max_customers_with_downstream": 1683,
   "expected_hydrants_per_break": 1.57,
-  "expected_gallons_drained": 31247,
+  "expected_gallons_drained": 32980,
   "max_customers": 335
  },
  "real": {
-  "segments": 55076,
-  "expected_customers_per_break": 30.7,
+  "segments": 55006,
+  "expected_customers_per_break": 30.8,
   "expected_customers_per_break_with_downstream": 38.6,
   "share_pipe_length_with_downstream_loss": 0.203,
   "max_customers_with_downstream": 2496,
   "expected_hydrants_per_break": 3.49,
-  "expected_gallons_drained": 41269,
-  "max_customers": 2038
+  "expected_gallons_drained": 43193,
+  "max_customers": 2039
  },
  "share_pipes_real_gt_paper": 0.345,
  "share_pipes_real_gt_2x": 0.207,
