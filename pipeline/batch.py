@@ -60,6 +60,9 @@ def main():
     tasks = [(s, k, length[s]) for s, (_, k) in best.items() if s not in done]
     # transmission (exact, slow) last so the distribution results land first
     tasks.sort(key=lambda t: float(mains[pieces[t[1]][0]].get("DIAMETER") or 0) >= 24)
+    if os.environ.get("H2O_BATCH_SHARD"):  # "i/n": split across machines (e.g. a Slurm array); one output file per shard
+        i, n = map(int, os.environ["H2O_BATCH_SHARD"].split("/"))
+        tasks = tasks[i::n]
     if os.environ.get("H2O_BATCH_ONLY") == "transmission":  # re-run only full-solve mains (>= 24 in)
         tasks = [t for t in tasks if float(mains[pieces[t[1]][0]].get("DIAMETER") or 0) >= 24]
     if limit:
