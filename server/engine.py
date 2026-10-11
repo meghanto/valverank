@@ -150,6 +150,10 @@ class Engine:
         self.wp_L, self.wp_D, self.wp_C = arr[:, 3], arr[:, 4], arr[:, 5]
         self.is_src = np.zeros(nj, bool)
         self.is_src[list(src_j)] = True
+        # pre-rendered INP lines so a window only joins strings
+        self.jline = np.array([f"J{i} {self.elev[i]:.2f} {self.dem[i]:.4f}" for i in range(nj)], dtype=object)
+        self.pline = np.array([f"P{k} J{a} J{b} {L:.2f} {D:.1f} {C:.0f} 0 " for k, a, b, L, D, C in
+                               zip(self.wp_k, self.wp_a, self.wp_b, self.wp_L, self.wp_D, self.wp_C)], dtype=object)
 
     # ------------------------------------------------------------------ hydraulics
     def _window(self, center, closed_k, emit):
@@ -164,14 +168,13 @@ class Engine:
         edge |= inside & self.is_src
         junc = np.where(inside & ~edge)[0]
         res = np.where(edge)[0]
-        closed = set(closed_k)
-        L = ["[JUNCTIONS]"] + [f"J{i} {self.elev[i]:.2f} {self.dem[i]:.4f}" for i in junc]
+        closed = np.zeros(len(self.pieces), bool)
+        closed[list(closed_k)] = True
+        sel = np.where(both)[0]
+        status = np.where(closed[self.wp_k[sel]], "Closed", "Open")
+        L = ["[JUNCTIONS]", *self.jline[junc]]
         L += ["", "[RESERVOIRS]"] + [f"J{i} {self.base_h[i]:.3f}" for i in res]
-        L += ["", "[PIPES]"]
-        for j in np.where(both)[0]:
-            k = self.wp_k[j]
-            L.append(f"P{k} J{self.wp_a[j]} J{self.wp_b[j]} {self.wp_L[j]:.2f} {self.wp_D[j]:.1f} {self.wp_C[j]:.0f} 0 "
-                     + ("Closed" if k in closed else "Open"))
+        L += ["", "[PIPES]", *(self.pline[sel] + status)]
         L += ["", "[OPTIONS]", "Units GPM", "Headloss H-W", "Trials 200", "Accuracy 0.001", "Demand Model PDA",
               "Minimum Pressure 0", f"Required Pressure {REQUIRED_PSI}", "Pressure Exponent 0.5", "", "[TIMES]",
               "Duration 0", "", "[END]", ""]
@@ -182,7 +185,7 @@ class Engine:
         if emit is not None and edge[emit[0]] == 0:
             en.ENsetnodevalue(en.ENgetnodeindex(f"J{emit[0]}"), EN_EMITTER, emit[1])
         en.ENopenH(); en.ENinitH(0); en.ENrunH()
-        pr = np.array([en.ENgetnodevalue(en.ENgetnodeindex(f"J{i}"), EN_PRESSURE) for i in junc])
+        pr = np.array([en.ENgetnodevalue(i, EN_PRESSURE) for i in range(1, len(junc) + 1)])  # junctions first, in file order
         en.ENcloseH(); en.ENclose()
         return junc, pr
 
@@ -212,7 +215,25 @@ class Engine:
 
     # ------------------------------------------------------------------ connectivity
     def _downstream(self, s, seg):
-        """Segments cut off from every source when segment `seg` is closed."""
+        """Segments cut off from every source when segment `seg` is closed.
+
+        From the supply DFS (pipeline/supply.py): the cut-off set is the union of the
+        DFS subtrees of seg's children c with low[c] >= disc[seg]."""
+        d = self.S[s]["dfs"]
+        if d["disc"][seg] < 0:
+            return []
+        kids = np.where(d["parent"] == seg)[0]
+        kids = kids[d["low"][kids] >= d["disc"][seg]]
+        if not len(kids):
+            return []
+        disc = d["disc"]
+        m = np.zeros(len(disc), bool)
+        for c in kids:
+            m |= (disc >= disc[c]) & (disc <= d["fin"][c])
+        return np.where(m)[0].tolist()
+
+    def _downstream_bfs(self, s, seg):
+        """Reference implementation (BFS) for tests."""
         adj, src = self.sgraph[s], self.src[s]
         seen = {seg}
         q = deque(x for x in src if x != seg)

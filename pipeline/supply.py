@@ -56,6 +56,7 @@ def articulation_loss(n, adj, sources, weight):
     low = np.zeros(n + 1, dtype=np.int64)
     sub = np.zeros(n + 1)
     lost = np.zeros(n + 1)
+    fin = np.full(n + 1, -1)
     parent = np.full(n + 1, -1)
     t = 0
     disc[X] = low[X] = t; t += 1
@@ -74,13 +75,14 @@ def articulation_loss(n, adj, sources, weight):
                 low[v] = min(low[v], disc[w])
         else:
             stack.pop()
+            fin[v] = t - 1  # last discovery time inside v's subtree
             p = parent[v]
             if p >= 0:
                 low[p] = min(low[p], low[v])
                 sub[p] += sub[v]
                 if p != X and low[v] >= disc[p]:
                     lost[p] += sub[v]
-    return lost[:n], disc[:n] >= 0
+    return lost[:n], disc[:n] >= 0, (disc[:n], low[:n], parent[:n], fin[:n])
 
 
 def main():
@@ -141,13 +143,14 @@ def main():
             for a in segs:
                 adj[a] |= segs - {a}
         sources = {int(comp[k]) for k in src_piece}
-        lost_c, reached = articulation_loss(n, adj, sources, cust)
-        lost_h, _ = articulation_loss(n, adj, sources, hyd)
+        lost_c, reached, dfs = articulation_loss(n, adj, sources, cust)
+        lost_h, _, _ = articulation_loss(n, adj, sources, hyd)
         unreached_cust = int(cust[~reached].sum())
         print(f"{scen}: segments={n} source segments={len(sources)} "
               f"unreached segments={int((~reached).sum())} (customers {unreached_cust}) "
               f"segments with downstream loss={int((lost_c > 0).sum())} max downstream={int(lost_c.max())}")
-        out[scen] = dict(roots=roots, lost_cust=lost_c, lost_hyd=lost_h, reached=reached, sources=sorted(sources))
+        out[scen] = dict(roots=roots, lost_cust=lost_c, lost_hyd=lost_h, reached=reached, sources=sorted(sources),
+                         dfs=dict(zip(("disc", "low", "parent", "fin"), dfs)))  # for O(n)-vectorised lost-set queries
     with open(BUILD / "supply.pkl", "wb") as fh:
         pickle.dump(out, fh)
     print("wrote", BUILD / "supply.pkl")
