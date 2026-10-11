@@ -1,8 +1,8 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react'
 import * as maplibregl from 'maplibre-gl'
 import type { GeoJSONSource, MapMouseEvent } from 'maplibre-gl'
 import 'maplibre-gl/dist/maplibre-gl.css'
-import { Timeline, type Phase } from './Timeline'
+import { Timeline, API, type Phase, type Params } from './Timeline'
 import { Repair, type RepairData } from './Repair'
 import workerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?url'
 import { Protocol } from 'pmtiles'
@@ -77,6 +77,8 @@ export default function App() {
   const [loading, setLoading] = useState(true)
   const [repair, setRepair] = useState<RepairData | null>(null)
   const [showcase, setShowcase] = useState<Showcase | null>(null)
+  const [initial, setInitial] = useState<Partial<Params> | undefined>(undefined)
+  const [ask, setAsk] = useState<{ q: string; busy?: boolean; err?: string }>({ q: '' })
 
   useEffect(() => {
     fetch(`${DATA}stats.json`).then(r => r.json()).then(setStats)
@@ -171,6 +173,7 @@ export default function App() {
           .sort((a, b) => a.d - b.d || diam(b.g) - diam(a.g))[0]?.g
         if (!f) return
         const p = f.properties as { k: number; sp: number; sr: number; d: number | null; m: string | null; y: number | null }
+        setInitial(undefined)  // a clicked break uses default assumptions, not the last question's
         breakAt([e.lngLat.lng, e.lngLat.lat], p)
       })
     })
@@ -207,6 +210,20 @@ export default function App() {
   }
 
   /** Jump to a showcase break: fly there, then break the pipe with that piece id once its tile is loaded. */
+  function submitAsk(e: FormEvent) {
+    e.preventDefault()
+    if (!ask.q.trim()) return
+    setAsk({ ...ask, busy: true, err: undefined })
+    fetch(`${API}/ask`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ q: ask.q }) })
+      .then(r => r.json().then(j => {
+        if (!r.ok) throw new Error(j.detail ?? `HTTP ${r.status}`)
+        setInitial(j.run.params)
+        setAsk({ q: ask.q })
+        goTo({ piece: j.piece, lon: j.lonlat[0], lat: j.lonlat[1] })
+      }))
+      .catch(err => setAsk({ q: ask.q, err: String(err.message ?? err) }))
+  }
+
   function goTo(c: { piece: number; lon: number; lat: number }) {
     const map = mapRef.current
     if (!map) return
@@ -255,6 +272,7 @@ export default function App() {
     const map = mapRef.current
     window.clearTimeout(timer.current)
     setBrk(null)
+    setInitial(undefined)
     showPressure([], null)
     showFixed([])
     if (!map) return
@@ -282,7 +300,13 @@ export default function App() {
 
         {!brk && stats && (
           <section>
-            <p className="hint">Click any water main on the map to break it.</p>
+            <p className="hint">Click any water main on the map to break it, or ask:</p>
+            <form className="ask" onSubmit={submitAsk}>
+              <input value={ask.q} onChange={e => setAsk({ q: e.target.value })} disabled={ask.busy}
+                placeholder="What if the main at Westheimer and Kirby bursts and crews take 2 hours?" aria-label="Ask about a break" />
+              <button disabled={ask.busy}>{ask.busy ? 'Finding…' : 'Ask'}</button>
+            </form>
+            {ask.err && <p className="err">{ask.err}</p>}
             <div className="kpis">
               <Kpi label="Main valves recorded inoperable" value={fmt(stats.valves_on_mains_inop)} sub={`of ${fmt(stats.valves_on_mains)} on mains`} />
               <Kpi label="Last inspected 5+ years ago" value={`${Math.round(stats.valves_on_mains_last_inspected_5y_plus_share * 100)}%`} sub="industry practice: every valve within 5 years" />
@@ -337,7 +361,7 @@ export default function App() {
                 <p className="ok">Every valve around this break is recorded as working.</p>
               )
             )}
-            {brk.stage === 'real' && <Timeline piece={brk.k} onShow={showPressure} onFixed={showFixed} repaired={showcase?.repaired} />}
+            {brk.stage === 'real' && <Timeline key={brk.k} piece={brk.k} onShow={showPressure} onFixed={showFixed} repaired={showcase?.repaired} initial={initial} />}
             <button className="reset" onClick={clearBreak}>Back to overview</button>
           </section>
         )}

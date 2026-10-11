@@ -18,13 +18,15 @@ const LABEL: Record<Phase['phase'], string> = {
 }
 const fmt = (n: number) => Math.round(n).toLocaleString('en-US')
 
-export function Timeline({ piece, onShow, onFixed, repaired }: {
+export function Timeline({ piece, onShow, onFixed, repaired, initial }: {
   piece: number
+  initial?: Partial<Params>  // e.g. parsed from a typed question
   onShow: (pieces: number[], kind: Phase['phase'] | null) => void
   onFixed?: (pieces: number[]) => void
   repaired?: number
 }) {
-  const [params, setParams] = useState<Params>({ opening: 0.25, t_first: 60, t_dead: 90, t_repair: 360 })
+  const [params, setParams] = useState<Params>({ opening: 0.25, t_first: 60, t_dead: 90, t_repair: 360, ...initial })
+  const [brief, setBrief] = useState<{ text?: string; err?: string; busy?: boolean }>({})
   const [run, setRun] = useState<Run | null>(null)
   const [err, setErr] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
@@ -103,6 +105,17 @@ export function Timeline({ piece, onShow, onFixed, repaired }: {
           onChange={v => setParams({ ...params, t_dead: v })} />
         <Slider label="Repair time" value={params.t_repair} min={60} max={720} step={30} show={v => `${(v / 60).toFixed(1)} h`}
           onChange={v => setParams({ ...params, t_repair: v })} />
+      </div>
+      <div className="brief">
+        <button disabled={brief.busy} onClick={() => {
+          setBrief({ busy: true })
+          fetch(`${API}/brief`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ run }) })
+            .then(r => r.json().then(j => (r.ok ? setBrief({ text: j.brief }) : setBrief({ err: j.detail ?? `HTTP ${r.status}` }))))
+            .catch(e => setBrief({ err: String(e) }))
+        }}>{brief.busy ? 'Writing crew brief…' : 'Crew brief (Gemini)'}</button>
+        {brief.text && <p>{brief.text}</p>}
+        {brief.err && <p className="err">Brief unavailable: {brief.err}</p>}
+        <small>Gemini only rewords the numbers above; a brief containing any other number is rejected.</small>
       </div>
       <p className="fine">
         EPANET pressure model of all 290k City mains, {run.exact ? 'full-city solve' : 'local 4 km solve'} in {fmt(run.solve_ms)} ms
