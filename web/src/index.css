@@ -107,3 +107,10 @@ footer { margin-top: auto; font-size: 11px; color: var(--muted); line-height: 1.
 .history .legend-row i { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 5px; vertical-align: -1px; }
 .history .facts { list-style: none; padding: 0; margin: 8px 0; display: grid; gap: 6px; font-size: 13px; line-height: 1.4; }
 .history .facts b { font-variant-numeric: tabular-nums; }
+.year svg, .history svg { width: 100%; height: auto; display: block; margin: 6px 0 4px; }
+.year .axis { stroke: rgba(255, 255, 255, 0.18); stroke-width: 1; }
+.year .tick { fill: var(--muted); font-size: 9px; }
+.year .legend-row { display: flex; flex-wrap: wrap; gap: 6px 14px; font-size: 12px; color: var(--muted); }
+.year .legend-row i { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 5px; vertical-align: -1px; }
+.year .facts { list-style: none; padding: 0; margin: 8px 0; display: grid; gap: 6px; font-size: 13px; line-height: 1.4; }
+.year .lede b.fixed { color: #3ddc97; }

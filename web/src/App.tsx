@@ -5,6 +5,7 @@ import 'maplibre-gl/dist/maplibre-gl.css'
 import { Timeline, API, type Phase, type Params } from './Timeline'
 import { Repair, type RepairData } from './Repair'
 import { History } from './History'
+import { YearPanel } from './Year'
 import workerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?url'
 import { Protocol } from 'pmtiles'
 
@@ -317,6 +318,7 @@ export default function App() {
           </section>
         )}
         {!brk && repair && repair.valves.length > 0 && <Repair data={repair} onChange={showRepairs} />}
+        {!brk && <YearPanel repaired={showcase?.repaired} />}
         {!brk && <History />}
         {!brk && showcase && (
           <section className="showcase">

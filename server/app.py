@@ -133,6 +133,35 @@ def history():
 _HISTORY = None
 
 
+@app.get("/year")
+def year():
+    """Simulated 2027 (pipeline/sim_year.py) from Tiger Data: weekly dead-valve cost split into what the
+    planner's top-100 repairs recover and what is still lost, from the sim_daily continuous aggregate."""
+    global _YEAR
+    if _YEAR is None:
+        conn = store._conn
+        if conn is None:
+            raise HTTPException(503, "Tiger Data not configured")
+        with conn.cursor() as c:
+            c.execute("""SELECT time_bucket('7 days', day, origin => '2027-01-01'::timestamptz)::date AS week,
+                                sum(customer_hours) FILTER (WHERE scenario = 'paper'),
+                                sum(customer_hours) FILTER (WHERE scenario = 'real'),
+                                sum(customer_hours) FILTER (WHERE scenario = 'fixed')
+                         FROM sim_daily GROUP BY 1 ORDER BY 1""")
+            weeks = [{"week": str(w), "dead_valve_cost": round(r - p), "after_repairs": round(f - p)} for w, p, r, f in c.fetchall()]
+            c.execute("""SELECT scenario, sum(customer_hours), max(peak_customers) FROM sim_daily GROUP BY 1""")
+            tot = {s: {"customer_hours": round(h), "peak_customers": int(m)} for s, h, m in c.fetchall()}
+            c.execute("SELECT count(*) FROM sim_breaks WHERE scenario = 'paper' AND phase = 'gush'")
+            n = c.fetchone()[0]
+            c.execute("SELECT count(*) FROM sim_customers_out")
+            rows = c.fetchone()[0]
+        _YEAR = {"year": 2027, "breaks": n, "minute_rows": rows, "totals": tot, "weeks": weeks}
+    return _YEAR
+
+
+_YEAR = None
+
+
 class Ask(BaseModel):
     q: str
 
