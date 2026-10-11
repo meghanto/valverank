@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react'
 import * as maplibregl from 'maplibre-gl'
 import type { GeoJSONSource, MapMouseEvent } from 'maplibre-gl'
 import 'maplibre-gl/dist/maplibre-gl.css'
-import { Timeline, API, type Phase, type Params } from './Timeline'
+import { Timeline, API, type Phase, type Params, type Run } from './Timeline'
 import { Repair, type RepairData } from './Repair'
 import { History } from './History'
 import { YearPanel } from './Year'
@@ -68,9 +68,48 @@ function pixelDistance(map: maplibregl.Map, f: maplibregl.MapGeoJSONFeature, x: 
   return best
 }
 
+type PipeProps = { k: number; sp: number; sr: number; d: number | null; m: string | null; y: number | null }
+const pipeProps = (f: { id?: string | number; properties: unknown }): PipeProps => ({ ...(f.properties as PipeProps), k: Number(f.id) })
+
+/** Closest point on a rendered line to a screen position, as lng/lat: the break sits on the pipe, not on the click. */
+function snapToPipe(map: maplibregl.Map, f: maplibregl.MapGeoJSONFeature, x: number, y: number): [number, number] {
+  const g = f.geometry
+  const lines: number[][][] = g.type === 'LineString' ? [g.coordinates] : g.type === 'MultiLineString' ? g.coordinates : []
+  let best = Infinity, bx = x, by = y
+  for (const line of lines) {
+    const pts = (line as [number, number][]).map(c => map.project(c))
+    for (let i = 0; i + 1 < pts.length; i++) {
+      const a = pts[i], b = pts[i + 1], dx = b.x - a.x, dy = b.y - a.y
+      const u = Math.max(0, Math.min(1, ((x - a.x) * dx + (y - a.y) * dy) / (dx * dx + dy * dy || 1)))
+      const px = a.x + u * dx, py = a.y + u * dy, d = Math.hypot(px - x, py - y)
+      if (d < best) { best = d; bx = px; by = py }
+    }
+  }
+  const ll = map.unproject([bx, by])
+  return [ll.lng, ll.lat]
+}
+
+/** Nearest pipe within 12 px; within 2 px (pipes meeting at a junction) prefer the bigger main. */
+function nearestPipe(map: maplibregl.Map, x: number, y: number) {
+  const t = 12
+  const near = map.queryRenderedFeatures([[x - t, y - t], [x + t, y + t]], { layers: ['pipes'] })
+  const diam = (g: maplibregl.MapGeoJSONFeature) => Number(g.properties.d) || 0
+  return near.map(g => ({ g, d: Math.round(pixelDistance(map, g, x, y) / 2) }))
+    .sort((a, b) => a.d - b.d || diam(b.g) - diam(a.g))[0]?.g
+}
+
+// pipe ids live in the tile feature id (tippecanoe --use-attribute-for-id=k), not in properties
+const NONE: maplibregl.FilterSpecification = ['==', ['id'], -1]
+/** Pipes whose id is in a (possibly 250k-long) list: 'match' is a hash lookup; 'in' over a literal array is a linear scan per feature. */
+function inPieces(list: number[]): maplibregl.FilterSpecification {
+  return list.length ? (['match', ['id'], [...new Set(list)], true, false] as never) : NONE
+}
+
 export default function App() {
   const mapEl = useRef<HTMLDivElement>(null)
   const mapRef = useRef<maplibregl.Map | null>(null)
+  const tipRef = useRef<HTMLDivElement>(null)
+  const pulseRef = useRef<number>(0)
   const segsRef = useRef<Segments | null>(null)
   const valveIndex = useRef<Map<number, ValveProps>>(new Map())
   const timer = useRef<number | undefined>(undefined)
@@ -80,6 +119,7 @@ export default function App() {
   const [repair, setRepair] = useState<RepairData | null>(null)
   const [showcase, setShowcase] = useState<Showcase | null>(null)
   const [initial, setInitial] = useState<Partial<Params> | undefined>(undefined)
+  const [run, setRun] = useState<Run | null>(null)
   const [ask, setAsk] = useState<{ q: string; busy?: boolean; err?: string }>({ q: '' })
 
   useEffect(() => {
@@ -96,11 +136,13 @@ export default function App() {
     const map = new maplibregl.Map({
       container: mapEl.current!,
       style: BASEMAP,
-      center: [-95.43, 29.81],
-      zoom: 12.2,
+      center: [-95.40, 29.78],
+      zoom: 10.4,  // whole city: mains >= 12 in are in the tiles from zoom 8, every pipe from 12
+      minZoom: 8,
       attributionControl: { compact: true },
     })
     mapRef.current = map
+    if (location.hostname === 'localhost') (window as unknown as { __map: maplibregl.Map }).__map = map  // local debugging only
     map.addControl(new maplibregl.NavigationControl({ showCompass: false }), 'top-right')
 
     map.on('load', () => {
@@ -108,29 +150,44 @@ export default function App() {
       map.addSource('city', { type: 'vector', url: `pmtiles://${new URL(`${DATA}city.pmtiles`, location.href).href}` })
       map.addSource('break', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } })
 
+      const D = ['to-number', ['get', 'd'], 8] as const
+      const byDiam = <T,>(big: T, mid: T, small: T) => ['case', ['>=', D, 24], big, ['>=', D, 12], mid, small]
       map.addLayer({
         id: 'pipes', type: 'line', source: 'city', 'source-layer': 'pipes',
+        layout: { 'line-cap': 'round', 'line-join': 'round' },
         paint: {
-          'line-color': ['case', ['<', ['coalesce', ['get', 'y'], 2000], 1970], '#6b7c93', '#3d4a5c'],
-          'line-width': ['interpolate', ['linear'], ['zoom'], 11, ['case', ['>=', ['to-number', ['get', 'd'], 0], 24], 2, 0.6],
-                         16, ['case', ['>=', ['to-number', ['get', 'd'], 0], 24], 6, 2.5]],
+          // size reads as hierarchy: transmission brightest and widest; hovered pipe lights up
+          'line-color': ['case', ['boolean', ['feature-state', 'hover'], false], '#f5f3ee', byDiam('#8fa6c4', '#5f7391', '#3f4b5e')] as never,
+          'line-width': ['interpolate', ['linear'], ['zoom'],
+            8, byDiam(1.6, 0.5, 0.2), 12, byDiam(3, 1.4, 0.8), 16, byDiam(7, 3.5, 2.2)] as never,
+          'line-opacity-transition': { duration: 250 },
         },
       })
+      const lineW = (a: number, b: number) => ['interpolate', ['linear'], ['zoom'], 10, a, 16, b] as never
       map.addLayer({
-        id: 'pressure-hl', type: 'line', source: 'city', 'source-layer': 'pipes', filter: ['in', ['get', 'k'], ['literal', []]],
-        paint: { 'line-color': '#ffb000', 'line-width': ['interpolate', ['linear'], ['zoom'], 11, 2, 16, 5], 'line-opacity': 0.9 },
+        id: 'pressure-hl', type: 'line', source: 'city', 'source-layer': 'pipes', filter: NONE,
+        layout: { 'line-cap': 'round' },
+        paint: { 'line-color': '#ffb000', 'line-width': lineW(1.5, 5), 'line-opacity': 0.85 },
+      })
+      map.addLayer({
+        id: 'real-glow', type: 'line', source: 'city', 'source-layer': 'pipes', filter: ['==', ['get', 'sr'], -1],
+        layout: { 'line-cap': 'round' },
+        paint: { 'line-color': '#ff4f32', 'line-width': lineW(8, 18), 'line-blur': 6, 'line-opacity': 0.35 },
       })
       map.addLayer({
         id: 'real-hl', type: 'line', source: 'city', 'source-layer': 'pipes', filter: ['==', ['get', 'sr'], -1],
-        paint: { 'line-color': '#ff4f32', 'line-width': ['interpolate', ['linear'], ['zoom'], 11, 2.5, 16, 6] },
+        layout: { 'line-cap': 'round' },
+        paint: { 'line-color': '#ff4f32', 'line-width': lineW(2.5, 6) },
       })
       map.addLayer({
-        id: 'fixed-hl', type: 'line', source: 'city', 'source-layer': 'pipes', filter: ['in', ['get', 'k'], ['literal', []]],
-        paint: { 'line-color': '#3ddc97', 'line-width': ['interpolate', ['linear'], ['zoom'], 11, 2.5, 16, 6] },
+        id: 'fixed-hl', type: 'line', source: 'city', 'source-layer': 'pipes', filter: NONE,
+        layout: { 'line-cap': 'round' },
+        paint: { 'line-color': '#3ddc97', 'line-width': lineW(2.5, 6) },
       })
       map.addLayer({
         id: 'paper-hl', type: 'line', source: 'city', 'source-layer': 'pipes', filter: ['==', ['get', 'sp'], -1],
-        paint: { 'line-color': '#4fb3ff', 'line-width': ['interpolate', ['linear'], ['zoom'], 11, 3, 16, 7] },
+        layout: { 'line-cap': 'round' },
+        paint: { 'line-color': '#4fb3ff', 'line-width': lineW(3, 7) },
       })
       map.addLayer({
         id: 'hydrants-hl', type: 'circle', source: 'city', 'source-layer': 'hydrants', filter: ['==', ['get', 'sr'], -1],
@@ -138,45 +195,79 @@ export default function App() {
       })
       map.addLayer({
         id: 'valves-inop', type: 'circle', source: 'city', 'source-layer': 'valves', filter: ['==', ['get', 'c'], 'INOP'],
-        minzoom: 10,
-        paint: { 'circle-radius': ['interpolate', ['linear'], ['zoom'], 12, 1.5, 16, 4], 'circle-color': '#ff4f32', 'circle-opacity': 0.55 },
+        minzoom: 11,
+        paint: { 'circle-radius': ['interpolate', ['linear'], ['zoom'], 11, 1.2, 16, 4], 'circle-color': '#ff4f32', 'circle-opacity': 0.6 },
       })
       map.addLayer({
         id: 'valves-close', type: 'circle', source: 'city', 'source-layer': 'valves', filter: ['in', ['get', 'id'], ['literal', []]],
         paint: { 'circle-radius': 6, 'circle-color': '#f5f3ee', 'circle-stroke-color': '#111318', 'circle-stroke-width': 2 },
       })
       map.addLayer({
-        id: 'valves-dead', type: 'symbol', source: 'city', 'source-layer': 'valves', filter: ['in', ['get', 'id'], ['literal', []]],
-        layout: { 'text-field': '✕', 'text-size': 18, 'text-allow-overlap': true },
-        paint: { 'text-color': '#ff4f32', 'text-halo-color': '#111318', 'text-halo-width': 2 },
+        id: 'valves-dead', type: 'circle', source: 'city', 'source-layer': 'valves', filter: ['in', ['get', 'id'], ['literal', []]],
+        paint: { 'circle-radius': 7, 'circle-color': '#ff4f32', 'circle-stroke-color': '#f5f3ee', 'circle-stroke-width': 2.5 },
+      })
+      map.addLayer({
+        id: 'break-pulse', type: 'circle', source: 'break',
+        paint: { 'circle-radius': 10, 'circle-color': 'rgba(0,0,0,0)', 'circle-stroke-color': '#ff4f32', 'circle-stroke-width': 2, 'circle-stroke-opacity': 0.8 },
       })
       map.addLayer({
         id: 'break', type: 'circle', source: 'break',
-        paint: { 'circle-radius': 9, 'circle-color': '#ff4f32', 'circle-stroke-color': '#fff', 'circle-stroke-width': 3 },
+        paint: { 'circle-radius': 8, 'circle-color': '#ff4f32', 'circle-stroke-color': '#f5f3ee', 'circle-stroke-width': 3 },
       })
 
       map.addSource('repair', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } })
       map.addLayer({
         id: 'repair', type: 'circle', source: 'repair', filter: ['<', ['get', 'rank'], 0],
-        paint: { 'circle-radius': ['interpolate', ['linear'], ['zoom'], 10, 2.5, 16, 7], 'circle-color': '#3ddc97',
+        paint: { 'circle-radius': ['interpolate', ['linear'], ['zoom'], 9, 2.5, 16, 7], 'circle-color': '#3ddc97',
                  'circle-stroke-color': '#111318', 'circle-stroke-width': 1 },
       })
       map.once('idle', () => setLoading(false))
-      map.on('mouseenter', 'pipes', () => (map.getCanvas().style.cursor = 'crosshair'))
-      map.on('mouseleave', 'pipes', () => (map.getCanvas().style.cursor = ''))
+
+      // the break marker's ring expands while a break is on the map: one authored motion, state-bearing
+      const pulse = (t: number) => {
+        const ph = (t % 1600) / 1600
+        if (map.getLayer('break-pulse')) {
+          map.setPaintProperty('break-pulse', 'circle-radius', 10 + 22 * (1 - Math.pow(1 - ph, 3)))
+          map.setPaintProperty('break-pulse', 'circle-stroke-opacity', 0.8 * (1 - ph))
+        }
+        pulseRef.current = requestAnimationFrame(pulse)
+      }
+      pulseRef.current = requestAnimationFrame(pulse)
+
+      // hover: nearest pipe within reach lights up with a label, so the click target is never a guess
+      let hovered: number | null = null, pending = false
+      map.on('mousemove', (e: MapMouseEvent) => {
+        if (pending) return
+        pending = true
+        requestAnimationFrame(() => {
+          pending = false
+          const f = nearestPipe(map, e.point.x, e.point.y)
+          const id = f?.id as number | undefined
+          if (hovered !== null && hovered !== id) map.setFeatureState({ source: 'city', sourceLayer: 'pipes', id: hovered }, { hover: false })
+          hovered = id ?? null
+          const tip = tipRef.current
+          if (f && id !== undefined) {
+            map.setFeatureState({ source: 'city', sourceLayer: 'pipes', id }, { hover: true })
+            map.getCanvas().style.cursor = 'pointer'
+            if (tip) {
+              const pr = f.properties as { d?: number; m?: string; y?: number }
+              tip.textContent = `${pr.d ? `${pr.d}″ ` : ''}${pr.m ?? ''} main${pr.y ? `, laid ${pr.y}` : ''} · click to break`
+              tip.style.transform = `translate(${e.point.x + 14}px, ${e.point.y + 14}px)`
+              tip.style.opacity = '1'
+            }
+          } else {
+            map.getCanvas().style.cursor = ''
+            if (tip) tip.style.opacity = '0'
+          }
+        })
+      })
+      map.on('mouseout', () => { if (tipRef.current) tipRef.current.style.opacity = '0' })
       // pipes are ~1 px wide at city zoom: accept clicks within a few pixels, nearest box first
       map.on('click', (e: MapMouseEvent) => {
-        const { x, y } = e.point
-        const t = 12
-        const near = map.queryRenderedFeatures([[x - t, y - t], [x + t, y + t]], { layers: ['pipes'] })
-        // nearest first; within 2 px (pipes meeting at a junction) prefer the bigger main
-        const diam = (g: maplibregl.MapGeoJSONFeature) => Number(g.properties.d) || 0
-        const f = near.map(g => ({ g, d: Math.round(pixelDistance(map, g, x, y) / 2) }))
-          .sort((a, b) => a.d - b.d || diam(b.g) - diam(a.g))[0]?.g
+        const f = nearestPipe(map, e.point.x, e.point.y)
         if (!f) return
-        const p = f.properties as { k: number; sp: number; sr: number; d: number | null; m: string | null; y: number | null }
         setInitial(undefined)  // a clicked break uses default assumptions, not the last question's
-        breakAt([e.lngLat.lng, e.lngLat.lat], p)
+        breakAt(snapToPipe(map, f, e.point.x, e.point.y), pipeProps(f))
       })
     })
     return () => map.remove()
@@ -204,11 +295,11 @@ export default function App() {
     const map = mapRef.current
     if (!map) return
     // isolated-phase pieces are already drawn as the outage areas; pressure layer shows gushing phases
-    map.setFilter('pressure-hl', ['in', ['get', 'k'], ['literal', kind && kind !== 'isolated' ? pieces : []]])
+    map.setFilter('pressure-hl', inPieces(kind && kind !== 'isolated' ? pieces : []))
   }
 
   function showFixed(pieces: number[]) {
-    mapRef.current?.setFilter('fixed-hl', ['in', ['get', 'k'], ['literal', pieces]])
+    mapRef.current?.setFilter('fixed-hl', inPieces(pieces))
   }
 
   /** Jump to a showcase break: fly there, then break the pipe with that piece id once its tile is loaded. */
@@ -230,13 +321,19 @@ export default function App() {
     const map = mapRef.current
     if (!map) return
     map.flyTo({ center: [c.lon, c.lat], zoom: 15.5, duration: 1200 })
-    map.once('idle', () => {
-      const f = map.querySourceFeatures('city', { sourceLayer: 'pipes', filter: ['==', ['get', 'k'], c.piece] })[0]
-      if (f) breakAt([c.lon, c.lat], f.properties as { k: number; sp: number; sr: number; d: number | null; m: string | null; y: number | null })
+    // tiles for the destination stream in after the flight: look for the pipe among loaded features, retrying briefly
+    map.once('moveend', () => {
+      let tries = 0
+      const find = () => {
+        const f = map.querySourceFeatures('city', { sourceLayer: 'pipes' }).find(g => Number(g.id) === c.piece)
+        if (f) breakAt([c.lon, c.lat], pipeProps(f))
+        else if (++tries < 15) window.setTimeout(find, 200)
+      }
+      find()
     })
   }
 
-  function breakAt(lngLat: [number, number], p: { k: number; sp: number; sr: number; d: number | null; m: string | null; y: number | null }) {
+  function breakAt(lngLat: [number, number], p: PipeProps) {
     const map = mapRef.current
     const segs = segsRef.current
     if (!map || !segs) return
@@ -253,16 +350,20 @@ export default function App() {
     const paper = segs.paper[p.sp]
     map.setFilter('paper-hl', ['==', ['get', 'sp'], p.sp])
     map.setFilter('real-hl', ['==', ['get', 'sr'], -1])
+    map.setFilter('real-glow', ['==', ['get', 'sr'], -1])
+    map.setPaintProperty('pipes', 'line-opacity', 0.45)  // the outage is the subject; the network steps back
     map.setFilter('valves-close', ['in', ['get', 'id'], ['literal', paper[4]]])
     map.setFilter('valves-dead', ['in', ['get', 'id'], ['literal', []]])
     map.setFilter('hydrants-hl', ['==', ['get', 'sp'], p.sp])
-    map.setFilter('pressure-hl', ['in', ['get', 'k'], ['literal', []]])
+    map.setFilter('pressure-hl', NONE)
     showFixed([])
+    setRun(null)
     const b: Break = { k: p.k, lngLat, sp: p.sp, sr: p.sr, diameter: p.d, material: p.m, year: p.y, stage: 'paper' }
     setBrk(b)
     timer.current = window.setTimeout(() => {
       const real = segs.real[p.sr]
       map.setFilter('real-hl', ['==', ['get', 'sr'], p.sr])
+      map.setFilter('real-glow', ['==', ['get', 'sr'], p.sr])
       map.setFilter('valves-close', ['in', ['get', 'id'], ['literal', real[4]]])
       map.setFilter('valves-dead', ['in', ['get', 'id'], ['literal', real[5]]])
       map.setFilter('hydrants-hl', ['==', ['get', 'sr'], p.sr])
@@ -274,12 +375,14 @@ export default function App() {
     const map = mapRef.current
     window.clearTimeout(timer.current)
     setBrk(null)
+    setRun(null)
     setInitial(undefined)
     showPressure([], null)
     showFixed([])
     if (!map) return
     ;(map.getSource('break') as GeoJSONSource).setData({ type: 'FeatureCollection', features: [] })
-    for (const id of ['paper-hl', 'real-hl']) map.setFilter(id, ['==', ['get', id === 'paper-hl' ? 'sp' : 'sr'], -1])
+    for (const id of ['paper-hl', 'real-hl', 'real-glow']) map.setFilter(id, ['==', ['get', id === 'paper-hl' ? 'sp' : 'sr'], -1])
+    map.setPaintProperty('pipes', 'line-opacity', 1)
     map.setFilter('hydrants-hl', ['==', ['get', 'sr'], -1])
     for (const id of ['valves-close', 'valves-dead']) map.setFilter(id, ['in', ['get', 'id'], ['literal', []]])
   }
@@ -335,23 +438,11 @@ export default function App() {
               <span className="dot" /> Break on a {brk.diameter ? `${brk.diameter}″ ` : ''}{brk.material ?? ''} main
               {brk.year ? `, laid ${brk.year}` : ''}
             </div>
-            <table className="compare">
-              <thead>
-                <tr><th /><th className="paper">If every valve worked</th><th className="real">With the City's valve records</th></tr>
-              </thead>
-              <tbody>
-                <Row label="Customers without water" a={paper[0] + paper[6]} b={real[0] + real[6]} show={brk.stage === 'real'} />
-                <Row label="… of which cut off downstream" a={paper[6]} b={real[6]} show={brk.stage === 'real'} sub />
-                <Row label="Fire hydrants dry" a={paper[1] + paper[7]} b={real[1] + real[7]} show={brk.stage === 'real'} />
-                <Row label="Pipe shut off (m)" a={paper[2]} b={real[2]} show={brk.stage === 'real'} />
-                <Row label="Water drained (gal)" a={paper[3]} b={real[3]} show={brk.stage === 'real'} />
-                <Row label="Valves crews must close" a={paper[4].length} b={real[4].length} show={brk.stage === 'real'} />
-              </tbody>
-            </table>
+            <Scenarios paper={paper} real={real} run={run} revealed={brk.stage === 'real'} repaired={showcase?.repaired ?? 100} />
             {brk.stage === 'real' && (
               dead.length ? (
                 <div className="dead">
-                  <h3>{dead.length} valve{dead.length > 1 ? 's' : ''} in the way {dead.length > 1 ? 'are' : 'is'} recorded inoperable</h3>
+                  <h3><span className="dead-mark" />{dead.length} valve{dead.length > 1 ? 's' : ''} in the way {dead.length > 1 ? 'are' : 'is'} recorded inoperable</h3>
                   <ul>
                     {dead.slice(0, 6).map(v => (
                       <li key={v.id}>
@@ -365,7 +456,23 @@ export default function App() {
                 <p className="ok">Every valve around this break is recorded as working.</p>
               )
             )}
-            {brk.stage === 'real' && <Timeline key={brk.k} piece={brk.k} onShow={showPressure} onFixed={showFixed} repaired={showcase?.repaired} initial={initial} />}
+            <Timeline key={brk.k} piece={brk.k} onShow={showPressure} onFixed={showFixed} onRun={setRun} repaired={showcase?.repaired} initial={initial} />
+            <details className="details">
+              <summary>Segment details</summary>
+              <table className="compare">
+                <thead>
+                  <tr><th /><th className="paper">Every valve works</th><th className="real">City valve records</th></tr>
+                </thead>
+                <tbody>
+                  <Row label="Customers without water" a={paper[0] + paper[6]} b={real[0] + real[6]} show={brk.stage === 'real'} />
+                  <Row label="… of which cut off downstream" a={paper[6]} b={real[6]} show={brk.stage === 'real'} sub />
+                  <Row label="Fire hydrants dry" a={paper[1] + paper[7]} b={real[1] + real[7]} show={brk.stage === 'real'} />
+                  <Row label="Pipe shut off (m)" a={paper[2]} b={real[2]} show={brk.stage === 'real'} />
+                  <Row label="Water drained (gal)" a={paper[3]} b={real[3]} show={brk.stage === 'real'} />
+                  <Row label="Valves crews must close" a={paper[4].length} b={real[4].length} show={brk.stage === 'real'} />
+                </tbody>
+              </table>
+            </details>
             <button className="reset" onClick={clearBreak}>Back to overview</button>
           </section>
         )}
@@ -374,15 +481,48 @@ export default function App() {
           {loading ? 'Loading Houston water network…' : `Model results from ${stats?.data_snapshot ?? 'City GIS'}. Customers are utility accounts, not people.`}
         </footer>
       </aside>
-      <div ref={mapEl} className="map" />
-      <div className="legend">
-        <span><i style={{ background: '#4fb3ff' }} /> outage if every valve worked</span>
-        <span><i style={{ background: '#ff4f32' }} /> outage with recorded broken valves</span>
-        <span><i style={{ background: '#3ddc97' }} /> after top {showcase?.repaired ?? 100} repairs</span>
-        <span><i className="round" style={{ background: '#f5f3ee' }} /> valves crews close</span>
-        <span><b style={{ color: '#ff4f32' }}>✕</b> recorded inoperable</span>
-        <span><i style={{ background: '#ffb000' }} /> loses ≥15 psi while gushing</span>
+      <div className="map-wrap">
+        <div ref={mapEl} className="map" />
+        <div ref={tipRef} className="hover-tip" aria-hidden="true" />
+        <details className="legend" open>
+          <summary>Legend</summary>
+          <div className="legend-items">
+          <span><i style={{ background: '#4fb3ff' }} /> outage if every valve worked</span>
+          <span><i style={{ background: '#ff4f32' }} /> outage with the City's valve records</span>
+          <span><i style={{ background: '#3ddc97' }} /> after the top {showcase?.repaired ?? 100} repairs</span>
+          <span><i style={{ background: '#ffb000' }} /> loses 15+ psi while gushing</span>
+          <span><i className="round" style={{ background: '#f5f3ee', boxShadow: '0 0 0 2px #111318' }} /> valve crews close</span>
+          <span><i className="round" style={{ background: '#ff4f32', boxShadow: '0 0 0 2px #f5f3ee' }} /> valve recorded inoperable</span>
+          </div>
+        </details>
       </div>
+    </div>
+  )
+}
+
+type Seg = [number, number, number, number, number[], number[], number, number]
+
+/** Every valve works / City records / after the top repairs, side by side in the map's colors. */
+function Scenarios({ paper, real, run, revealed, repaired }: { paper: Seg; real: Seg; run: Run | null; revealed: boolean; repaired: number }) {
+  const iso = (s?: { phases: Phase[] }) => s?.phases[s.phases.length - 1]
+  const f = iso(run?.fixed)
+  const cols = [
+    { key: 'paper', name: 'Every valve works', cust: paper[0] + paper[6], hyd: paper[1] + paper[7], ch: run?.paper.customer_hours, show: true },
+    { key: 'real', name: "City valve records", cust: real[0] + real[6], hyd: real[1] + real[7], ch: run?.real.customer_hours, show: revealed },
+    { key: 'fixed', name: `After top ${repaired} repairs`, cust: f?.customers, hyd: f?.hydrants, ch: run?.fixed?.customer_hours, show: revealed && !!run?.fixed },
+  ]
+  const n = (v: number | undefined, show: boolean) => (show && v !== undefined ? fmt(Math.round(v)) : '…')
+  return (
+    <div className="scen" role="table" aria-label="Outage by scenario">
+      {cols.map(c => (
+        <div key={c.key} className={`scen-col ${c.key}`} role="row">
+          <div className="scen-name" role="columnheader"><i />{c.name}</div>
+          <div className="scen-big" role="cell">{n(c.cust, c.show)}</div>
+          <div className="scen-unit">customers shut off</div>
+          <div className="scen-row" role="cell"><b>{n(c.ch, c.show && !!run)}</b> customer-hours{run?.partial ? '*' : ''}</div>
+          <div className="scen-row" role="cell"><b>{n(c.hyd, c.show)}</b> hydrants dry</div>
+        </div>
+      ))}
     </div>
   )
 }

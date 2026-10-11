@@ -40,8 +40,9 @@ const LABEL: Record<Phase['phase'], string> = {
 }
 const fmt = (n: number) => Math.round(n).toLocaleString('en-US')
 
-export function Timeline({ piece, onShow, onFixed, repaired, initial }: {
+export function Timeline({ piece, onShow, onFixed, onRun, repaired, initial }: {
   piece: number
+  onRun?: (r: Run) => void  // the panel's scenario columns read the same run
   initial?: Partial<Params>  // e.g. parsed from a typed question
   onShow: (pieces: number[], kind: Phase['phase'] | null) => void
   onFixed?: (pieces: number[]) => void
@@ -66,9 +67,9 @@ export function Timeline({ piece, onShow, onFixed, repaired, initial }: {
       const get = (stage: string) => fetch(`${API}/break/${piece}?${q}&stage=${stage}`)
         .then(r => (r.ok ? r.json() : Promise.reject(new Error(`HTTP ${r.status}`))))
       // shut-off outage needs connectivity only (milliseconds): show it while the pressure solve runs
-      get('outage').then((r: Run) => { if (id === req.current && !full) { setRun(decode(r)); setErr(null) } }).catch(() => {})
+      get('outage').then((r: Run) => { if (id === req.current && !full) { const d = decode(r); setRun(d); onRun?.(d); setErr(null) } }).catch(() => {})
       get('full')
-        .then((r: Run) => { if (id === req.current) { full = true; setRun(decode(r)); setErr(null); setSel(-1) } })
+        .then((r: Run) => { if (id === req.current) { full = true; const d = decode(r); setRun(d); onRun?.(d); setErr(null); setSel(-1) } })
         .catch(e => { if (id === req.current) setErr(String(e.message ?? e)) })
         .finally(() => { if (id === req.current) setBusy(false) })
     }, 250)
@@ -93,15 +94,14 @@ export function Timeline({ piece, onShow, onFixed, repaired, initial }: {
   const extra = run.real.customer_hours - run.paper.customer_hours
   return (
     <div className={`timeline ${busy ? 'busy' : ''}`}>
-      {run.partial && <p className="pending-note">Shut-off outage shown (network only). Solving pressure for the gushing phases…</p>}
-      <div className="ch">
-        <div><span className="paper">{fmt(run.paper.customer_hours)}</span><small>customer-hours without water if every valve worked</small></div>
-        <div><span className="real">{fmt(run.real.customer_hours)}</span><small>with the City's valve records{extra > 0 ? ` (+${fmt(extra)})` : ''}</small></div>
-        {run.fixed && (
-          <div><span className="fixed">{fmt(run.fixed.customer_hours)}</span>
-            <small>after the planner's top {repaired ?? ''} repairs{run.repaired_valves?.length ? ` (fixes ${run.repaired_valves.length} valve${run.repaired_valves.length > 1 ? 's' : ''} here)` : ' (none here)'}</small></div>
-        )}
-      </div>
+      {run.partial && <p className="pending-note">* Shut-off time only so far. Solving pressure for the gushing phases…</p>}
+      {run.fixed && run.dead_valves.length > 0 && (
+        <p className="repair-note">
+          {run.repaired_valves?.length
+            ? `The top ${repaired ?? ''} repairs fix ${run.repaired_valves.length} of the ${run.dead_valves.length} dead valve${run.dead_valves.length > 1 ? 's' : ''} at this break${extra > 0 ? `, saving ${fmt(run.real.customer_hours - run.fixed.customer_hours)} customer-hours` : ''}.`
+            : `None of this break's dead valves are in the top ${repaired ?? ''} repairs.`}
+        </p>
+      )}
       {(run.fixed ? (['paper', 'real', 'fixed'] as const) : (['paper', 'real'] as const)).map(s => (
         <div key={s} className="track">
           <div className={`track-label ${s}`}>{s === 'paper' ? 'Every valve works' : s === 'real' ? 'City valve records' : `After top ${repaired ?? ''} repairs`}</div>

@@ -215,7 +215,12 @@ def main():
     (OUT / "stats.json").write_text(json.dumps(st, indent=1))
     print(json.dumps(st, indent=1))
     import subprocess
-    subprocess.run(["tippecanoe", "-o", str(OUT / "city.pmtiles"), "--force", "-Z10", "-z15",
+    # mains >= 12 in from zoom 8 (whole city visible and clickable), every pipe from 12; pipe id k becomes the
+    # feature id (fast hover/feature-state and hash-lookup filters in the web app)
+    subprocess.run(["tippecanoe", "-o", str(OUT / "city.pmtiles"), "--force", "-Z8", "-z15", "--use-attribute-for-id=k",
+                    "-j", json.dumps({"pipes": ["any", [">=", "$zoom", 12], [">=", "d", 12]],
+                                      "valves": ["any", [">=", "$zoom", 12], ["==", "c", "INOP"]],
+                                      "hydrants": [">=", "$zoom", 13]}),
                     "--drop-densest-as-needed", "--extend-zooms-if-still-dropping",
                     "-L", f"pipes:{TILES / 'pipes.geojson'}", "-L", f"valves:{TILES / 'valves.geojson'}",
                     "-L", f"hydrants:{TILES / 'hydrants.geojson'}", "--quiet"], check=True)
