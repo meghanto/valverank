@@ -54,7 +54,8 @@ def main():
             best[s] = (key, k)
     done = set()
     if OUT.exists():
-        done = {json.loads(l)["seg"] for l in OUT.read_text().splitlines() if l.strip()}
+        rows = [json.loads(l) for l in OUT.read_text().splitlines() if l.strip()]
+        done = {r["seg"] for r in rows if "error" not in r}  # failed rows are retried
     tasks = [(s, k, length[s]) for s, (_, k) in best.items() if s not in done]
     # transmission (exact, slow) last so the distribution results land first
     tasks.sort(key=lambda t: float(mains[pieces[t[1]][0]].get("DIAMETER") or 0) >= 24)

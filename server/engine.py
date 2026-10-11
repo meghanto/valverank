@@ -168,6 +168,8 @@ class Engine:
         edge |= inside & self.is_src
         junc = np.where(inside & ~edge)[0]
         res = np.where(edge)[0]
+        if not len(junc):  # piece outside the hydraulic model (unsupplied fragment): no pressure result
+            return junc, np.zeros(0)
         closed = np.zeros(len(self.pieces), bool)
         closed[list(closed_k)] = True
         sel = np.where(both)[0]
@@ -182,7 +184,7 @@ class Engine:
         f.write_text("\n".join(L))
         en = ENepanet()
         en.ENopen(str(f), str(f.with_suffix(".rpt")), "")
-        if emit is not None and edge[emit[0]] == 0:
+        if emit is not None and inside[emit[0]] and not edge[emit[0]]:
             en.ENsetnodevalue(en.ENgetnodeindex(f"J{emit[0]}"), EN_EMITTER, emit[1])
         en.ENopenH(); en.ENinitH(0); en.ENrunH()
         pr = np.array([en.ENgetnodevalue(i, EN_PRESSURE) for i in range(1, len(junc) + 1)])  # junctions first, in file order
@@ -195,6 +197,8 @@ class Engine:
             ls = [self.link[k] for k in closed_k if k in self.link]
             for l in ls:
                 en.ENsetlinkvalue(l, EN_INITSTATUS, 0)
+            if emit and not np.isfinite(self.base_h[emit[0]]):
+                emit = None  # break node not in the hydraulic model
             ei = en.ENgetnodeindex(f"J{emit[0]}") if emit else None
             if emit:
                 en.ENsetnodevalue(ei, EN_EMITTER, emit[1])
