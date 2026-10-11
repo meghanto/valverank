@@ -139,7 +139,7 @@ def main():
     # valves on mains in demo area
     vf = []
     for vi, (kind, _, _) in N["valve_place"].items():
-        if kind == "off":
+        if kind not in ("node", "pipe"):
             continue
         v = valves[vi]
         g, a = v["geometry"], v["attributes"]
@@ -186,11 +186,11 @@ def main():
     st["share_pipes_real_gt_2x"] = round(float(np.sum(w * (cr > 2 * cp + 1))), 3)
     st["valves_total"] = len(valves)
     st["valves_inop"] = sum(1 for v in valves if v["attributes"].get("CONDITION") == "INOP")
-    st["valves_on_mains"] = sum(1 for k, _, _ in N["valve_place"].values() if k != "off")
+    st["valves_on_mains"] = sum(1 for k, _, _ in N["valve_place"].values() if k in ("node", "pipe"))
     st["valves_on_mains_inop"] = sum(
-        1 for vi, (k, _, _) in N["valve_place"].items() if k != "off" and valves[vi]["attributes"].get("CONDITION") == "INOP")
+        1 for vi, (k, _, _) in N["valve_place"].items() if k in ("node", "pipe") and valves[vi]["attributes"].get("CONDITION") == "INOP")
     ages = [(NOW - dt.datetime.fromtimestamp(valves[vi]["attributes"]["CONDITIONDATE"] / 1000, dt.UTC)).days / 365.25
-            for vi, (k, _, _) in N["valve_place"].items() if k != "off" and valves[vi]["attributes"].get("CONDITIONDATE")]
+            for vi, (k, _, _) in N["valve_place"].items() if k in ("node", "pipe") and valves[vi]["attributes"].get("CONDITIONDATE")]
     st["valves_on_mains_last_inspected_5y_plus_share"] = round(float(np.mean(np.array(ages) >= 5)), 3)
     st["data_snapshot"] = "City of Houston public GIS, last edited 2023-06-05"
     st["demo_bbox"] = BBOX

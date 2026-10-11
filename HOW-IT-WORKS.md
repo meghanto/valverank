@@ -5,9 +5,9 @@ When a main breaks, crews close the nearest valves. If one of those valves is br
 
 ## The four steps
 
-**1. Network.** The City's GIS has 290,959 pipe lines. Where two pipe ends share a coordinate, they're connected. That gives a graph of 270,826 junctions.
+**1. Network.** The City's GIS has 290,959 pipe lines; 290,411 are in-use drinking-water mains. Where two pipe ends share a coordinate, they're connected. That gives a graph of 270,356 junctions.
 
-**2. Valves cut the graph.** 166,362 valves are in the GIS. We keep a valve only if it sits within 1 m of a main (102,323 do). The rest are on service lines or hydrant leads, which don't isolate a main.
+**2. Valves cut the graph.** 166,362 valves are in the GIS. We keep a valve only if it sits within 1 m of a main (3 m for valves the City labels in-line) and is not a hydrant or service valve: 92,763 qualify. The rest are on service lines or hydrant leads, which don't isolate a main.
 - Valve at a junction: closing it separates the pipes that meet there.
 - Valve in the middle of a pipe: we split the pipe in two at the valve.
 
@@ -17,8 +17,8 @@ We do this twice:
 
 | Scenario | Rule | Segments | Avg customers out per break |
 |---|---|---|---|
-| **Paper** | Every valve closes | 82,085 | 11.9 |
-| **Real** | Valves marked `INOP` in City records can't close | 64,803 | **25.1** |
+| **Paper** | Every valve closes | 72,253 | 13.1 |
+| **Real** | Valves marked `INOP` in City records can't close | 55,076 | **30.7** |
 
 Fewer segments means bigger ones: dead valves merge neighboring segments.
 

@@ -128,3 +128,32 @@ Verdict scale:
 - **"INOP flags reflect reality."** The planned 311 Winter Storm Uri check (#8) hasn't been downloaded.
 - **Anything about 2026.** Every water layer stops in June 2023.
 - **Exact customer counts.** Accounts ≠ active water accounts (+8%).
+
+## 7. Fix log
+
+Commit after `99d0d83`. D1, D3, D4 fixed; D2 partly fixed (844 of 970 tees joined at ≤1 m; the other 126 are 1–1.5 m away). D5 open.
+
+| Quantity | Before | After |
+|---|---|---|
+| Mains modeled | 290,959 | 290,411 (dropped abandoned, proposed, non-potable) |
+| Valves used as cut points | 102,323 | 92,763 (66,959 hydrant/service valves excluded) |
+| Valves splitting a pipe mid-line | 9,112 | 829 |
+| Unnoded tees joined | 0 | 844 |
+| Segments, paper / real | 82,085 / 64,803 | 72,253 / 55,076 |
+| Customers per break (length-weighted), paper / real | 11.9 / 25.1 | **13.1 / 30.7** |
+| Hydrants per break, paper / real | 1.40 / 2.78 | 1.57 / 3.49 |
+| Largest segment (customers), paper / real | 329 / 1,896 | 335 / 2,038 |
+| INOP valves on mains | 17,501 | 17,413 |
+
+The real/paper ratio went from 2.1× to 2.3×. The direction of the finding held, and the size of the gap grew.
+
+News check after the fix (`validation/model_vs_news.md`; only 4 events report a count):
+
+| Event | Reported | Model, closest pipe (paper → real) | Read |
+|---|---|---|---|
+| Beltway 8 & Bellfort, 12″ | 74–80 homes and businesses | 8 → 28 | Real scenario is closer; still 3× low |
+| Memorial Dr, 24″ | 1 (an apartment complex) | 7 → 7 | Not comparable (one account = many units) |
+| Tidwell & Antoine, 16″ | 2,000 | 5 → 5 | Miss: no supply model (D5) |
+| Keller St | 9 | 57 → 57 | Model 6× high; the location match is uncertain (37 candidate pipes) |
+
+**These checks don't validate the model.** It's 4 events with uncertain geocodes and mixed units.

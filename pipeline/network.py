@@ -13,7 +13,12 @@ Model
     junction node, every pipe meeting there is separated at that node. If it
     sits inside a pipe, the pipe is split into two pieces at the valve.
   - Valves farther than SNAP_M from any main are on laterals/hydrant leads and
-    are ignored for main isolation.
+    are ignored for main isolation. In-line valves get SNAP_INLINE_M.
+  - Hydrant and service valves never cut a main, however close they sit: they
+    isolate the lead, not the main (data_audit.md D1).
+  - Abandoned/proposed and non-potable mains are dropped (D4).
+  - A dead end within TEE_M of another pipe's interior is an unnoded tee: the
+    other pipe is split there and joined to the dead end (D2).
   - Pieces that touch at a non-cut node are joined (union-find).
 
 Outputs data/build/network.pkl for export.py.
@@ -32,6 +37,11 @@ ROOT = Path(__file__).resolve().parent.parent
 RAW, BUILD = ROOT / "data" / "raw", ROOT / "data" / "build"
 
 SNAP_M = 1.0        # valve must lie this close to a main to count as a main valve
+SNAP_INLINE_M = 3.0  # same, for valves the City records as in-line (D3)
+TEE_M = 1.0         # dead end this close to another pipe's interior = unnoded tee
+INLINE_USE = {"INL", "IN LINE", "IN LINE - SLF"}
+LEAD_USE = {"HYD LEAD", "HL", "SERVICE", "SERV", "FIRE SERVICE"}
+HYDRANT_VALVE_SUBTYPE = 33
 NODE_M = 0.5        # valve this close to a junction node sits "at" the node
 CUSTOMER_M = 120.0  # max distance customer point -> main
 HYDRANT_M = 40.0    # max distance hydrant -> main
@@ -68,8 +78,14 @@ def load(name):
 
 def main():
     BUILD.mkdir(parents=True, exist_ok=True)
-    mains = [f for f in load("mains") if f.get("geometry", {}).get("paths")]
-    print("mains with geometry:", len(mains))
+    extra = {f["attributes"]["OBJECTID"]: f["attributes"] for f in load("mains_attrs")}
+    raw = [f for f in load("mains") if f.get("geometry", {}).get("paths")]
+    for f in raw:
+        f["attributes"].update(extra[f["attributes"]["OBJECTID"]])
+    mains = [f for f in raw
+             if f["attributes"].get("LIFECYCLESTATUS") not in ("A", "P")
+             and f["attributes"].get("WATERTYPE") not in ("NOPW", "NOPC")]
+    print("mains with geometry:", len(raw), "kept (in use, potable):", len(mains))
 
     # --- pipes as polylines in metres -------------------------------------
     pipes = []  # (main_idx, coords_xy ndarray, coords_lonlat list)
@@ -124,12 +140,39 @@ def main():
         q = a + t * ab
         return float(np.hypot(*(p - q))), t
 
+    pipe_cuts = defaultdict(list)      # pipe -> [(seg, t, valve idx | ("J", node))]
+
+    # --- unnoded tees ---------------------------------------------------------
+    own = defaultdict(set)
+    for pi, (a_n, b_n) in enumerate(ends):
+        own[a_n].add(pi); own[b_n].add(pi)
+    dangling = [n for n, c in deg.items() if c == 1]
+    _, dnear = samp_tree.query(node_xy[dangling], k=8)
+    n_tee = 0
+    for n, cand in zip(dangling, dnear):
+        p = node_xy[n]
+        best = (TEE_M, None, None, None)
+        for si in set(int(samp_pipe[j]) for j in cand) - own[n]:
+            c = pipes[si][1]
+            for s in range(len(c) - 1):
+                d, t = seg_dist(p, c[s], c[s + 1])
+                if d <= best[0]:
+                    best = (d, si, s, t)
+        if best[1] is not None:
+            pipe_cuts[best[1]].append((best[2], best[3], ("J", n)))
+            n_tee += 1
+    print("unnoded tees joined:", n_tee)
+
     node_valves = defaultdict(list)    # node -> valve idx
-    pipe_cuts = defaultdict(list)      # pipe -> [(seg, t, valve idx)]
     valve_place = {}
     nd, nn = node_tree.query(vxy)
     _, near = samp_tree.query(vxy, k=8)
     for vi, p in enumerate(vxy):
+        a = valves[vi]["attributes"]
+        if a.get("SUBTYPECD") == HYDRANT_VALVE_SUBTYPE or a.get("VALVE_USE") in LEAD_USE:
+            valve_place[vi] = ("lead", None, float(nd[vi]))
+            continue
+        snap = SNAP_INLINE_M if a.get("VALVE_USE") in INLINE_USE else SNAP_M
         if nd[vi] <= NODE_M:
             node_valves[int(nn[vi])].append(vi)
             valve_place[vi] = ("node", int(nn[vi]), 0.0)
@@ -141,7 +184,7 @@ def main():
                 d, t = seg_dist(p, c[s], c[s + 1])
                 if d < best[0]:
                     best = (d, si, s, t)
-        if best[0] <= SNAP_M:
+        if best[0] <= snap:
             pipe_cuts[best[1]].append((best[2], best[3], vi))
             valve_place[vi] = ("pipe", best[1], best[0])
         else:
@@ -155,7 +198,7 @@ def main():
     vnode_base = len(node_xy)
     valve_node_of = {}  # interior valve -> synthetic node id
     for pi, (mi, c, ll) in enumerate(pipes):
-        cuts = sorted(pipe_cuts.get(pi, []))
+        cuts = sorted(pipe_cuts.get(pi, []), key=lambda c: (c[0], c[1]))
         a_node, b_node = ends[pi]
         if not cuts:
             pieces.append((pi, a_node, b_node, ll, float(np.sum(np.hypot(*np.diff(c, axis=0).T)))))
@@ -165,6 +208,8 @@ def main():
         for s, t, vi in cuts + [(len(c) - 2, 1.0, None)]:
             if vi is None:
                 cur_node = b_node
+            elif isinstance(vi, tuple):  # unnoded tee: split here, join the dead end
+                cur_node = vi[1]
             else:
                 cur_node = vnode_base + len(valve_node_of)
                 valve_node_of[vi] = cur_node

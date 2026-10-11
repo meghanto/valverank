@@ -1,25 +1,25 @@
 {
  "paper": {
-  "segments": 82085,
-  "expected_customers_per_break": 11.9,
-  "expected_hydrants_per_break": 1.4,
-  "expected_gallons_drained": 30413,
-  "max_customers": 329
+  "segments": 72253,
+  "expected_customers_per_break": 13.1,
+  "expected_hydrants_per_break": 1.57,
+  "expected_gallons_drained": 31247,
+  "max_customers": 335
  },
  "real": {
-  "segments": 64803,
-  "expected_customers_per_break": 25.1,
-  "expected_hydrants_per_break": 2.78,
-  "expected_gallons_drained": 38170,
-  "max_customers": 1896
+  "segments": 55076,
+  "expected_customers_per_break": 30.7,
+  "expected_hydrants_per_break": 3.49,
+  "expected_gallons_drained": 41269,
+  "max_customers": 2038
  },
- "share_pipes_real_gt_paper": 0.311,
- "share_pipes_real_gt_2x": 0.18,
+ "share_pipes_real_gt_paper": 0.345,
+ "share_pipes_real_gt_2x": 0.207,
  "valves_total": 166362,
  "valves_inop": 21574,
- "valves_on_mains": 102323,
- "valves_on_mains_inop": 17501,
- "valves_on_mains_last_inspected_5y_plus_share": 0.781,
+ "valves_on_mains": 92763,
+ "valves_on_mains_inop": 17413,
+ "valves_on_mains_last_inspected_5y_plus_share": 0.776,
  "data_snapshot": "City of Houston public GIS, last edited 2023-06-05",
  "demo_bbox": [
   -95.56,
