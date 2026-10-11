@@ -560,7 +560,7 @@ function Scenarios({ paper, real, run, revealed, repaired }: { paper: Seg; real:
           <div className="scen-big" role="cell">{n(c.cust, c.show)}</div>
           <div className="scen-unit">customers shut off</div>
           <div className="scen-row" role="cell"><b>{n(c.ch, c.show && !!run)}</b> customer-hours{run?.partial ? '*' : ''}</div>
-          <div className="scen-row" role="cell"><b>{n(c.hyd, c.show)}</b> hydrants dry</div>
+          <div className="scen-row" role="cell"><b>{n(c.hyd, c.show)}</b> {c.hyd === 1 && c.show ? 'hydrant' : 'hydrants'} dry</div>
         </div>
       ))}
     </div>

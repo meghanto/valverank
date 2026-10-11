@@ -138,7 +138,7 @@ footer { margin-top: auto; font-size: 11px; color: var(--muted); line-height: 1.
 .scen { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); }
 .scen-col { padding: 12px 10px 12px 0; display: flex; flex-direction: column; gap: 2px; }
 .scen-col + .scen-col { padding-left: 12px; border-left: 1px solid var(--line); }
-.scen-name { font-size: 12px; font-weight: 600; color: var(--ink); line-height: 1.25; min-height: 30px; }
+.scen-name { font-size: 12px; font-weight: 600; color: var(--ink); line-height: 1.25; min-height: calc(2 * 1.25em + 10px); }
 .scen-name i { display: block; width: 22px; height: 4px; border-radius: 2px; margin-bottom: 6px; }
 .scen-col.paper .scen-name i { background: var(--paper); } .scen-col.real .scen-name i { background: var(--real); } .scen-col.fixed .scen-name i { background: #3ddc97; }
 .scen-big { font-size: 28px; font-weight: 700; font-variant-numeric: tabular-nums; letter-spacing: -0.02em; line-height: 1.1; margin-top: 4px; }
@@ -208,10 +208,10 @@ footer { margin-top: auto; font-size: 11px; color: var(--muted); line-height: 1.
 .panel h2 { font-size: 27px; line-height: 1.05; margin-bottom: 8px; }
 .scen-big, .figures dt, .repair .ch span, .ch span, .kpi-value {
   font-family: var(--font-num); font-weight: 400; font-synthesis: none; letter-spacing: 0.005em; }
-.scen-big { font-size: 38px; line-height: 1; }
+.scen-big { font-family: var(--font-display); font-size: clamp(30px, 2.6vw, 40px); line-height: 1; white-space: nowrap; overflow: hidden; text-overflow: clip; }
 .figures dt { font-size: 30px; }
 .repair .ch span, .ch span { font-size: 34px; }
 /* technical labels: units, ticks, ids, slider readouts */
-.scen-unit, .track-label, .history .tick, .year .tick, .dead li b, .slider span b, .reset kbd, .seg span, .legend-phases {
+.track-label, .history .tick, .year .tick, .dead li b, .slider span b, .reset kbd, .seg span, .legend-phases {
   font-family: var(--font-mono); letter-spacing: 0; }
-.scen-unit, .track-label { font-size: 11px; text-transform: none; }
+.track-label { font-size: 11px; }
