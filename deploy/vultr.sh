@@ -29,7 +29,7 @@ ship)
   # only what the API needs: code + model files (no data/raw: licensed facilities data stays local)
   ssh -o StrictHostKeyChecking=accept-new root@"$IP" "mkdir -p /opt/h2out/data/build /opt/h2out/web"
   rsync -az -R server pipeline/pyproject.toml pipeline/uv.lock pipeline/*.py data/build/network.pkl data/build/supply.pkl \
-    data/build/houston.inp data/build/hydraulic_index.npz data/build/fixed root@"$IP":/opt/h2out/
+    data/build/houston.inp data/build/hydraulic_index.npz data/build/fixed data/build/intersections.json root@"$IP":/opt/h2out/
   # server-side secrets: Tiger Data + Gemini only (the Vultr key never leaves this machine)
   grep -E "^(TIGER_DATABASE_URL|GEMINI_API_KEY|GEMINI_MODEL)=" .env | ssh root@"$IP" "cat > /opt/h2out/.env && chmod 600 /opt/h2out/.env"
   # frontend (optional): web/dist built with VITE_API_URL=https://$HOST/api

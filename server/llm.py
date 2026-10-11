@@ -43,6 +43,24 @@ def parse_question(q: str) -> dict:
 _STREET_WORDS = r"(road|rd|street|st|drive|dr|avenue|ave|boulevard|blvd|lane|ln|parkway|pkwy|freeway|fwy|way)\.?$"
 
 
+_INTERSECTIONS = None
+
+
+def _local_intersection(a: str, b: str):
+    """Look up 'A|B' in data/build/intersections.json (pipeline/streets.py); (lon, lat) or None."""
+    global _INTERSECTIONS
+    import sys
+    from pathlib import Path
+    root = Path(__file__).resolve().parent.parent
+    if _INTERSECTIONS is None:
+        f = root / "data" / "build" / "intersections.json"
+        _INTERSECTIONS = json.loads(f.read_text()) if f.exists() else {}
+    sys.path.insert(0, str(root / "pipeline"))
+    from streets import norm
+    hit = _INTERSECTIONS.get("|".join(sorted([norm(a), norm(b)])))
+    return tuple(hit) if hit else None
+
+
 OVERPASS = ["https://overpass-api.de/api/interpreter", "https://maps.mail.ru/osm/tools/overpass/api/interpreter"]
 
 
@@ -76,6 +94,9 @@ def geocode(place: str):
     core = re.sub(r",?\s*houston.*$", "", place, flags=re.I).strip()
     parts = re.split(r"\s+(?:and|&|at|@|/)\s+|\s*[&@/]\s*", core, maxsplit=1, flags=re.I)
     if len(parts) == 2:
+        hit = _local_intersection(*parts)  # City street centerlines, offline and instant
+        if hit:
+            return hit
         for attempt in range(2):  # Overpass rate-limits bursts (429); one retry
             try:
                 hit = _intersection(*parts)
