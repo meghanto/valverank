@@ -26,6 +26,9 @@ ROOT = Path(__file__).resolve().parent.parent
 BUILD = ROOT / "data" / "build"
 INP = BUILD / "houston.inp"
 REQUIRED_PSI = 20.0
+# gushing-phase impact = pressure lost vs baseline, not an absolute floor: the uncalibrated baseline is
+# weakest far from the plants (west Houston), so 'newly below 20 psi' lit up the wrong place (audit §10)
+DROP_PSI = 15.0
 PSI_PER_FT = 0.4335
 RADIUS_M = 4000.0  # window accuracy at 4 km: median 0.5 psi, worst 3.9 psi vs full solve (29 breaks)
 BIG_IN = 24
@@ -214,7 +217,7 @@ class Engine:
 
     def _gush_out(self, k, closed_k, emit, exact):
         junc, pr = (self._full if exact else lambda c, e: self._window(self.pa[k], c, e))(closed_k, emit)
-        out = (pr < REQUIRED_PSI) & (self.base_p[junc] >= REQUIRED_PSI)
+        out = (self.base_p[junc] - pr) >= DROP_PSI
         return set(junc[out].tolist())
 
     # ------------------------------------------------------------------ connectivity

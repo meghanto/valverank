@@ -320,7 +320,7 @@ export default function App() {
         <span><i style={{ background: '#ff4f32' }} /> outage with recorded broken valves</span>
         <span><i className="round" style={{ background: '#f5f3ee' }} /> valves crews close</span>
         <span><b style={{ color: '#ff4f32' }}>✕</b> recorded inoperable</span>
-        <span><i style={{ background: '#ffb000' }} /> below 20 psi while gushing</span>
+        <span><i style={{ background: '#ffb000' }} /> loses ≥15 psi while gushing</span>
       </div>
     </div>
   )

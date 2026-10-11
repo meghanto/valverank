@@ -251,3 +251,18 @@ Swept every service on both City GIS servers (`geogimsms`, `geohwp`): 186 servic
 **Conclusion:** no public source records valve condition after March 2023. Bounds from what is public: ≤ 117 311 valve cases (0.7%) and ~108 INOP valves near capital valve projects (0.6%) could have been repaired. The 17,413 figure stands as "City records, June 2023 snapshot". Unknown-condition valves (96,732, treated as working) push the other way.
 
 **New validation lead:** `WaterBreak_Dashboard/0` has 3,495 geolocated water-break 311 calls (2021-09 → 2024-06) with created/closed dates. It could test the length-weighted break distribution by main class. Do not export the `INCIDENT_ADDRESS`/`TITLE` fields (street addresses).
+
+## 13. Gushing metric changed: pressure drop, not "newly below 20 psi" (2026-10-11 05:00)
+
+Found in the browser: a 54″ break (piece 10256, −95.429, 29.811) lit up low pressure only 11–23 km west of the break. Diagnosis (full solve, 25% bore): pressure near the break fell 51 → 33 psi (never below 20), while a west-Houston zone whose *baseline* is only 33–38 psi crossed 20 psi after a ~18 psi citywide drop. The "newly below 20 psi" metric therefore marked the weakest-baseline zone, not the break's footprint. Baseline: 4.1% of junctions are below the TCEQ 35 psi normal minimum, probably because booster pumps are not modelled (fix in progress as option B).
+
+Change: `server/engine.py` counts a junction as affected while gushing when its pressure falls ≥ `DROP_PSI` = 15 psi below its own baseline. Result, real scenario, gushing phase:
+
+| Break | Customers affected | Distance from break p10 / p50 / p90 (km) |
+|---|---|---|
+| 54″ piece 10256 | 268,079 | 4.1 / 11.5 / 21.0 (was 11.3 / 12.7 / 23.3, none within 10 km) |
+| 60″ piece 2353 | 100,872 | 3.1 / 8.1 / 19.2 |
+| 84″ piece 81556 | 446,406 | 4.7 / 11.9 / 21.2 |
+| 8″ piece 85470 | 0 | — |
+
+Open issue: transmission footprints are very large (a 25% bore 54″ break drains ~107 MGD, about half of modelled demand). The 15 psi threshold is an assumption, not a standard.

@@ -79,7 +79,7 @@ export function Timeline({ piece, onShow }: { piece: number; onShow: (pieces: nu
         </div>
       ))}
       <ul className="legend-phases">
-        <li><i className="gush" /> gushing: below 20 psi</li>
+        <li><i className="gush" /> gushing: loses ≥15 psi</li>
         <li><i className="gush_dead" /> still gushing (dead valve)</li>
         <li><i className="isolated" /> shut off</li>
       </ul>
@@ -95,7 +95,7 @@ export function Timeline({ piece, onShow }: { piece: number; onShow: (pieces: nu
       </div>
       <p className="fine">
         EPANET pressure model of all 290k City mains, {run.exact ? 'full-city solve' : 'local 4 km solve'} in {fmt(run.solve_ms)} ms
-        {run.cached ? ' (cached)' : ''}. Uncalibrated: plant pressures, demand and times are assumptions (sliders).
+        {run.cached ? ' (cached)' : ''}. Gushing counts customers whose pressure falls 15 psi or more below normal. Uncalibrated: plant pressures, demand and times are assumptions (sliders).
       </p>
     </div>
   )
