@@ -12,13 +12,14 @@ EXTRA = {
     "valves": (f"{UTIL}/39", "OBJECTID,OWNER,DATECREATED,DATEMODIFIED,INSPECTIONDATE,CURRENT_POSITION,SMALLMAINDIAMETER,TURNSTOOPEN"),
     "hydrants": (f"{UTIL}/46", "OBJECTID,OWNER,DATECREATED,DATEMODIFIED,INSPECTIONDATE,HYDRANT_INSPECTED_DATE"),
     "control_valves": (f"{UTIL}/38", "OBJECTID,SUBTYPECD,CONTROLVALVETYPE,NORMALPOSITION,LIFECYCLESTATUS,DIAMETER,DATEMODIFIED"),
+    "structures": (f"{UTIL}/44", "OBJECTID,SUBTYPECD,NAME,FACILITYNAME,LIFECYCLESTATUS,WATERTYPE,OWNER,CAPACITY,LARGEMAINDIAMETER,SMALLMAINDIAMETER,OPERATIONALAREA,ZONE,DATEMODIFIED"),
     "prs": (f"{UTIL}/48", "OBJECTID,LIFECYCLESTATUS,LARGEMAINDIAMETER,SMALLMAINDIAMETER,PRESSURESETTINGINIPSI,DATEMODIFIED"),
 }
 
 
 def fetch(name):
     url, fields = EXTRA[name]
-    geom = name in ("control_valves", "prs")
+    geom = name in ("control_valves", "prs", "structures")
     ids = sorted(post(f"{url}/query", {"where": "1=1", "returnIdsOnly": "true"})["objectIds"])
     chunks = [ids[i:i + 1000] for i in range(0, len(ids), 1000)]
     one = lambda c: post(f"{url}/query", {"objectIds": ",".join(map(str, c)), "outFields": fields,

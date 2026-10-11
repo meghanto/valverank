@@ -59,6 +59,13 @@ def main():
         hydc = np.bincount(s[hyd_piece[hyd_piece >= 0]], minlength=len(pieces))
         length = np.bincount(s, weights=L, minlength=len(pieces))
         agg[scen] = dict(cust=cust, hyd=hydc, length=length)
+    # downstream supply loss (pipeline/supply.py), indexed like cust: by segment root
+    S = pickle.load(open(BUILD / "supply.pkl", "rb"))
+    for scen in ("paper", "real"):
+        down, downh = np.zeros(len(pieces)), np.zeros(len(pieces))
+        down[S[scen]["roots"]] = S[scen]["lost_cust"]
+        downh[S[scen]["roots"]] = S[scen]["lost_hyd"]
+        agg[scen]["down"], agg[scen]["downh"] = down, downh
 
     # volume drained when a segment is emptied (gal): pi r^2 L, diameter in inches
     diam_in = np.array([float(mains[p[0]].get("DIAMETER") or 0) for p in pieces])
@@ -121,7 +128,8 @@ def main():
         })
     (OUT / "pipes.geojson").write_text(json.dumps({"type": "FeatureCollection", "features": feats}, separators=(",", ":")))
 
-    # segments.json: per compact id -> [customers, hydrants, length_m, gallons, [valve ids], [dead valve ids]]
+    # segments.json: per compact id -> [customers, hydrants, length_m, gallons, [valve ids], [dead valve ids],
+    #                                   downstream customers, downstream hydrants]
     segs = {}
     for scen in ("paper", "real"):
         out = []
@@ -132,6 +140,7 @@ def main():
                 int(g["cust"][s]), int(g["hyd"][s]), round(float(g["length"][s])), round(float(g["vol"][s])),
                 sorted(valves[v]["attributes"]["OBJECTID"] for v in bound[scen].get(s, ())),
                 sorted(valves[v]["attributes"]["OBJECTID"] for v in dead_inside.get(s, ())) if scen == "real" else [],
+                int(g["down"][s]), int(g["downh"][s]),
             ])
         segs[scen] = out
     (OUT / "segments.json").write_text(json.dumps(segs, separators=(",", ":")))
@@ -177,6 +186,9 @@ def main():
         st[scen] = dict(
             segments=int(len(np.unique(s))),
             expected_customers_per_break=round(float(np.sum(agg[scen]["cust"][s] * w)), 1),
+            expected_customers_per_break_with_downstream=round(float(np.sum((agg[scen]["cust"][s] + agg[scen]["down"][s]) * w)), 1),
+            share_pipe_length_with_downstream_loss=round(float(np.sum(w * (agg[scen]["down"][s] > 0))), 3),
+            max_customers_with_downstream=int((agg[scen]["cust"] + agg[scen]["down"]).max()),
             expected_hydrants_per_break=round(float(np.sum(agg[scen]["hyd"][s] * w)), 2),
             expected_gallons_drained=round(float(np.sum(agg[scen]["vol"][s] * w))),
             max_customers=int(agg[scen]["cust"].max()),

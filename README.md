@@ -8,9 +8,10 @@ Shutoff runs this on Houston's real water network (290,959 pipe segments, 166,36
 
 | Citywide result (model) | Every valve works | City-recorded valve status |
 |---|---|---|
-| Customers out, average break (length-weighted) | 13.1 | **30.7** |
+| Customers out, average break (length-weighted) | 16.3 | **38.6** |
+| … of which cut off downstream (no remaining path to a plant, pump station or tank) | 3.2 | 7.9 |
 | Fire hydrants out, average break | 1.6 | **3.5** |
-| Largest single isolation segment | 335 customers | **2,038 customers** |
+| Largest single outage | 1,683 customers | **2,496 customers** |
 
 78% of valves on mains were last inspected five or more years ago (industry guidance: exercise every valve within five years).
 
@@ -27,8 +28,9 @@ Shutoff runs this on Houston's real water network (290,959 pipe segments, 166,36
      - **paper**: every valve closes.
      - **real**: valves with `CONDITION = 'INOP'` can't close, so the segments on either side merge.
    - Customers and hydrants are snapped to the nearest main.
-3. **Export** (`pipeline/export.py`) writes the demo area (NW and central Houston) as GeoJSON, plus citywide statistics.
-4. **Web** (`web/`): React + MapLibre. Clicking a pipe looks up its paper and real segments and animates the difference.
+3. **Supply loss** (`pipeline/supply.py`): closing a segment can also cut off segments whose only path to a water source runs through it. Sources are the City's 218 in-service plants, pump stations and storage tanks (layer 44). One articulation-point pass over the segment graph gives every segment's downstream loss; `pipeline/test_supply.py` checks it against brute force.
+4. **Export** (`pipeline/export.py`) writes the demo area (NW and central Houston) as GeoJSON, plus citywide statistics.
+5. **Web** (`web/`): React + MapLibre. Clicking a pipe looks up its paper and real segments and animates the difference.
 
 ```bash
 uv run --project pipeline python pipeline/ingest.py    # ~2 min, ~220 MB to data/raw
@@ -42,7 +44,7 @@ cd web && npm install && npm run dev
 - **Data snapshot.** The City's public water GIS was last edited 2023-06-05, and valve condition records end in March 2023. Pipe networks change slowly (about 0.3% of lines replaced per year). Inoperable flags are a floor: dead valves don't fix themselves.
 - **Connectivity-only model.** There's no hydraulics. An isolation segment is where water *can* be shut off, not a pressure simulation.
 - **Customers are utility accounts, not people.** An apartment complex can be a single account.
-- **Not validated against real outages.** Only 3 news-reported breaks have outage counts (`validation/model_vs_news.md`); the model underestimates large feeder-main breaks because it has no supply model.
+- **Not validated against real outages.** Only 3 news-reported breaks have outage counts (`validation/model_vs_news.md`); the model is low on both; it has no hydraulics (pressure loss), only connectivity.
 - **Data audit:** provenance, cross-checks against Houston Public Works published totals, and known defects are in `validation/data_audit.md`.
 
 ## AI tools used

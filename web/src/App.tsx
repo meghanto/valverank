@@ -11,8 +11,8 @@ maplibregl.setWorkerUrl(workerUrl)
 const DATA = `${import.meta.env.BASE_URL}data/`
 const BASEMAP = 'https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json'
 
-// [customers, hydrants, length_m, gallons, valveIds, deadValveIds]
-type SegRow = [number, number, number, number, number[], number[]]
+// [customers, hydrants, length_m, gallons, valveIds, deadValveIds, downstreamCustomers, downstreamHydrants]
+type SegRow = [number, number, number, number, number[], number[], number, number]
 type Segments = { paper: SegRow[]; real: SegRow[] }
 type Stats = {
   paper: ScenarioStats
@@ -25,6 +25,7 @@ type Stats = {
 }
 type ScenarioStats = {
   expected_customers_per_break: number
+  expected_customers_per_break_with_downstream: number
   expected_hydrants_per_break: number
   expected_gallons_drained: number
   max_customers: number
@@ -178,7 +179,7 @@ export default function App() {
             <div className="kpis">
               <Kpi label="Main valves recorded inoperable" value={fmt(stats.valves_on_mains_inop)} sub={`of ${fmt(stats.valves_on_mains)} on mains`} />
               <Kpi label="Last inspected 5+ years ago" value={`${Math.round(stats.valves_on_mains_last_inspected_5y_plus_share * 100)}%`} sub="industry practice: every valve within 5 years" />
-              <Kpi label="Customers out, average break" value={`${stats.paper.expected_customers_per_break} → ${stats.real.expected_customers_per_break}`} sub="all valves work → City-recorded valve status" />
+              <Kpi label="Customers out, average break" value={`${stats.paper.expected_customers_per_break_with_downstream} → ${stats.real.expected_customers_per_break_with_downstream}`} sub="all valves work → City-recorded valve status; includes customers cut off downstream" />
               <Kpi label="Fire hydrants out, average break" value={`${stats.paper.expected_hydrants_per_break} → ${stats.real.expected_hydrants_per_break}`} sub="hydrants on the shut-off pipes" />
             </div>
           </section>
@@ -195,8 +196,9 @@ export default function App() {
                 <tr><th /><th className="paper">If every valve worked</th><th className="real">With the City's valve records</th></tr>
               </thead>
               <tbody>
-                <Row label="Customers without water" a={paper[0]} b={real[0]} show={brk.stage === 'real'} />
-                <Row label="Fire hydrants dry" a={paper[1]} b={real[1]} show={brk.stage === 'real'} />
+                <Row label="Customers without water" a={paper[0] + paper[6]} b={real[0] + real[6]} show={brk.stage === 'real'} />
+                <Row label="… of which cut off downstream" a={paper[6]} b={real[6]} show={brk.stage === 'real'} sub />
+                <Row label="Fire hydrants dry" a={paper[1] + paper[7]} b={real[1] + real[7]} show={brk.stage === 'real'} />
                 <Row label="Pipe shut off (m)" a={paper[2]} b={real[2]} show={brk.stage === 'real'} />
                 <Row label="Water drained (gal)" a={paper[3]} b={real[3]} show={brk.stage === 'real'} />
                 <Row label="Valves crews must close" a={paper[4].length} b={real[4].length} show={brk.stage === 'real'} />
@@ -248,10 +250,10 @@ function Kpi({ label, value, sub }: { label: string; value: string; sub: string 
   )
 }
 
-function Row({ label, a, b, show }: { label: string; a: number; b: number; show: boolean }) {
+function Row({ label, a, b, show, sub }: { label: string; a: number; b: number; show: boolean; sub?: boolean }) {
   const worse = b > a
   return (
-    <tr>
+    <tr className={sub ? 'sub' : undefined}>
       <td>{label}</td>
       <td className="paper">{fmt(a)}</td>
       <td className={`real ${worse ? 'worse' : ''}`}>{show ? fmt(b) : '…'}</td>

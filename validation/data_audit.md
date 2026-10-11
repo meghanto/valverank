@@ -28,7 +28,7 @@ Verdict scale:
 | 9 | 311 counts by ZIP | Context | — | **MISSING** |
 | 10 | News-reported breaks | Outage-size validation | `validation/news_breaks.csv`: 12 events, every row has a source URL; **only 3 have a count** | Have, thin |
 | 11 | HPW financial reports FY23–25 (independent totals) | Cross-check our counts | Figures in §3 below | Have (figures, not files) |
-| 12 | Water plants / supply points (3 surface, 54 groundwater plants) | Supply-loss model | — | **MISSING**: no public GIS layer found yet |
+| 12 | Water plants / supply points, `UtilityAnalysis_gx/44` "Network Structure" (402: wells 181, pump stations 92, ground tanks 92, elevated tanks 25, "surface water treatment plant" 12) | Supply-loss model | `structures_attrs.json` | Have. CAVEAT: labels are inconsistent (several "surface water treatment plant" points are named groundwater plants). We use subtypes 14–17 that are in service (218); all snap to a main ≤300 m (median 0 m, 90th percentile 42 m). |
 
 ## 2. Provenance
 
@@ -157,3 +157,17 @@ News check after the fix (`validation/model_vs_news.md`; only 4 events report a 
 | Keller St | 9 HISD schools (KPRC: 3); no customer count | 57 → 57 | Not comparable: the unit is schools |
 
 **These checks don't validate the model.** Only 2 events report a customer-like count (Beltway 8, Tidwell), and the model is low on both.
+
+## 8. Supply loss (D5)
+
+`pipeline/supply.py`, verified against brute force (`pipeline/test_supply.py`: 62/62 sampled segments match exactly).
+
+| Quantity | Paper | Real |
+|---|---|---|
+| Customers per break, isolation only | 13.1 | 30.7 |
+| Customers per break, with downstream loss | **16.3** | **38.6** |
+| Share of pipe length whose closure cuts off downstream customers | 13.6% | 20.3% |
+| Largest single outage | 1,683 | 2,496 |
+| Segments with no path to any source | 641 (2,538 customers) | 605 (2,538 customers) |
+
+News check: Beltway 8 & Bellfort is now 22 → 38 (reported 74–80). Tidwell & Antoine is unchanged at 5 (reported 2,000; another report says 100+). The 16″ main there sits in a looped grid, so isolating it cuts nothing off by connectivity. The reported outage was probably pressure loss, which needs a hydraulic model. **D5 is partly fixed: connectivity supply loss is modeled; pressure is not.**

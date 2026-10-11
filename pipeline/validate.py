@@ -25,7 +25,12 @@ def xy(lon, lat):
 def main():
     N = pickle.load(open(ROOT / "data/build/network.pkl", "rb"))
     pieces, seg, mains, cp = N["pieces"], N["seg"], N["mains"], N["cust_piece"]
-    cust = {s: np.bincount(seg[s][cp[cp >= 0]], minlength=len(pieces)) for s in ("paper", "real")}
+    S = pickle.load(open(ROOT / "data/build/supply.pkl", "rb"))
+    cust = {}
+    for s in ("paper", "real"):  # customers out = in the segment + cut off downstream of it
+        c = np.bincount(seg[s][cp[cp >= 0]], minlength=len(pieces)).astype(float)
+        c[S[s]["roots"]] += S[s]["lost_cust"]
+        cust[s] = c.astype(int)
     mids = np.array([xy(*p[3][len(p[3]) // 2]) for p in pieces])
     diam = np.array([mains[p[0]].get("DIAMETER") or 0 for p in pieces])
 
@@ -65,7 +70,8 @@ def main():
         )
     text = "\n".join(out)
     (ROOT / "validation/model_vs_news.md").write_text(
-        "# Model vs. news-reported main breaks\n\nCustomers = City utility accounts within 120 m of the segment's mains. "
+        "# Model vs. news-reported main breaks\n\nCustomers = City utility accounts within 120 m of the segment's mains, "
+        "plus accounts in segments cut off from every plant/pump station/tank by closing it (pipeline/supply.py). "
         f"Candidates = mains within {RADIUS_M:.0f} m of the geocoded point (filtered to the reported diameter when one matches).\n\n"
         + text + "\n")
     print(text)
