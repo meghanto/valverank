@@ -171,3 +171,14 @@ News check after the fix (`validation/model_vs_news.md`; only 4 events report a 
 | Segments with no path to any source | 641 (2,538 customers) | 605 (2,538 customers) |
 
 News check: Beltway 8 & Bellfort is now 22 → 38 (reported 74–80). Tidwell & Antoine is unchanged at 5 (reported 2,000; another report says 100+). The 16″ main there sits in a looped grid, so isolating it cuts nothing off by connectivity. The reported outage was probably pressure loss, which needs a hydraulic model. **D5 is partly fixed: connectivity supply loss is modeled; pressure is not.**
+
+## 9. Search for more outage counts (closed)
+
+About 900 Houston water-break articles, 2010–2026: sitemaps of ABC13, Houston Chronicle, chron.com, FOX 26, Community Impact, Houston Public Media and Houston Press; KHOU and KPRC via the Wayback Machine; the City newsroom and HPW pages. Details in `news_breaks_search_log.md`.
+
+- **No new event reports a count comparable to customer accounts.** NB02 and NB07 remain the only two.
+- Added NB13–NB16, all without counts:
+  - **NB13** (2014): a leaky valve on a transmission line "threatened roughly 40,000 residents" with low pressure. That's a hydraulic effect, consistent with the Tidwell reading.
+  - **NB16** (2024): a planned shutoff with published street boundaries. Usable for an area check, not a count check.
+- Counts appear only when an HPW spokesperson quotes one to a reporter. Planned-shutoff notices go out by door hanger, Nextdoor and 311, and aren't archived.
+- **Conclusion:** public sources can't validate outage size. The realistic route is a public-records request to HPW for work orders with valve closures and customers out of service. That's the "next step" for the pitch.
