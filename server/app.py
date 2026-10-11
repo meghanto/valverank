@@ -11,6 +11,7 @@ Every number comes from engine.Engine; Gemini only parses questions and words re
 
   uv run --project pipeline uvicorn server.app:app --port 8787
 """
+import gzip
 import json
 import os
 from functools import lru_cache
@@ -23,6 +24,7 @@ from pydantic import BaseModel
 
 from server.engine import Engine
 from server import store
+from server.codec import encode
 
 ROOT = Path(__file__).resolve().parent.parent
 for line in (ROOT / ".env").read_text().splitlines() if (ROOT / ".env").exists() else []:
@@ -53,13 +55,30 @@ def brk(piece: int, opening: float = 0.25, t_first: int = 60, t_dead: int = 90, 
         raise HTTPException(404, "no such pipe piece")
     if not (0.01 <= opening <= 1.0 and 0 <= t_first <= 1440 and 0 <= t_dead <= 1440 and 0 <= t_repair <= 4320):
         raise HTTPException(422, "parameter out of range")
-    key = f"{piece}:{opening:.2f}:{t_first}:{t_dead}:{t_repair}:{int(exact)}"
-    hit = store.get(key)
+    key = run_key(ENGINE.version, piece, opening, t_first, t_dead, t_repair, exact)
+    hit = disk_get(key) or store.get(key)
     if hit:
         return hit | {"cached": True}
-    r = ENGINE.run(piece, opening, t_first, t_dead, t_repair, exact)
+    r = encode(ENGINE.run(piece, opening, t_first, t_dead, t_repair, exact), len(ENGINE.pieces))
     store.put(key, r)
     return r | {"cached": False}
+
+
+def run_key(version, piece, opening=0.25, t_first=60, t_dead=90, t_repair=360, exact=False):
+    """Cache key; pipeline/presolve.py uses the same function so presolved files are found."""
+    return f"{version}:{piece}:{opening:.2f}:{t_first}:{t_dead}:{t_repair}:{int(exact)}"
+
+
+CACHE = Path(os.environ.get("H2O_CACHE_DIR", ROOT / "data" / "build" / "cache"))
+
+
+def disk_path(key):
+    return CACHE / key.split(":", 1)[0] / (key.replace(":", "_") + ".json.gz")
+
+
+def disk_get(key):
+    f = disk_path(key)
+    return json.loads(gzip.decompress(f.read_bytes())) if f.exists() else None
 
 
 @app.get("/nearest")

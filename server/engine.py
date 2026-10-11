@@ -31,6 +31,7 @@ REQUIRED_PSI = 20.0
 # gushing-phase impact = pressure lost vs baseline, not an absolute floor: the uncalibrated baseline is
 # weakest far from the plants (west Houston), so 'newly below 20 psi' lit up the wrong place (audit §10)
 DROP_PSI = 15.0
+ENGINE_REV = "3"  # bump when run() logic changes (part of the cache version)
 # areas the 4 km window can't solve: Kingwood is fed by its own capped sources and ~10 boundary pipes,
 # so pinning the window boundary at baseline head hides a 40+ psi drop (audit §13). Full solve there.
 EXACT_BOXES = [(-95.30, 29.98, -95.10, 30.15)]  # lon0, lat0, lon1, lat1
@@ -138,7 +139,14 @@ class Engine:
         ok = np.where(np.isfinite(node_xy[:, 0]) & np.isfinite(self.base_h))[0]
         self.tree, self.tree_ids = cKDTree(node_xy[ok]), ok
         self.tmp = Path(tempfile.mkdtemp(prefix="h2o_"))
-        print(f"engine ready in {time.time() - t0:.0f} s", flush=True)
+        # cache version: changes whenever model files or engine settings change, so stale results are never served
+        import hashlib
+        h = hashlib.sha1()
+        for f in (INP, BUILD / "network.pkl", BUILD / "supply.pkl"):
+            h.update(f.read_bytes())
+        h.update(repr((ENGINE_REV, DROP_PSI, REQUIRED_PSI, RADIUS_M, BIG_IN, EXACT_BOXES, sorted(FIXED_IDS))).encode())
+        self.version = h.hexdigest()[:10]
+        print(f"engine ready in {time.time() - t0:.0f} s (version {self.version})", flush=True)
 
     def _parse_inp(self):
         elev, dem, pipes, src_j = {}, {}, [], set()

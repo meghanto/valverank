@@ -3,6 +3,27 @@ import { useEffect, useRef, useState } from 'react'
 export const API = (import.meta.env.VITE_API_URL as string | undefined) ?? 'http://localhost:8787'
 
 export type Phase = { phase: 'gush' | 'gush_dead' | 'isolated'; minutes: number; customers: number; hydrants: number; pieces: number[] }
+
+/** Server sends large piece lists as a base64 bitset over all pieces (server/codec.py). */
+type Wire = number[] | { bits: string }
+function unpack(p: Wire): number[] {
+  if (Array.isArray(p)) return p
+  const bytes = Uint8Array.from(atob(p.bits), c => c.charCodeAt(0))
+  const out: number[] = []
+  for (let i = 0; i < bytes.length; i++) {
+    const b = bytes[i]
+    if (b) for (let j = 0; j < 8; j++) if (b & (1 << j)) out.push(i * 8 + j)
+  }
+  return out
+}
+function decode(r: Run): Run {
+  const sc = (x?: Scenario) => x && { ...x, phases: x.phases.map(ph => ({ ...ph, pieces: unpack(ph.pieces as unknown as Wire) })) }
+  return { ...r, paper: sc(r.paper)!, real: sc(r.real)!, fixed: sc(r.fixed) }
+}
+function strip(r: Run) {  // the crew brief needs counts, not piece lists
+  const sc = (x?: Scenario) => x && { ...x, phases: x.phases.map(ph => ({ ...ph, pieces: [] })) }
+  return { ...r, paper: sc(r.paper), real: sc(r.real), fixed: sc(r.fixed) }
+}
 export type Scenario = { phases: Phase[]; customer_hours: number; segment_customers: number; downstream_customers: number }
 export type Run = {
   piece: number; diameter: number; exact: boolean; dead_valves: number[]; solve_ms: number; cached?: boolean
@@ -40,7 +61,7 @@ export function Timeline({ piece, onShow, onFixed, repaired, initial }: {
       const q = new URLSearchParams(Object.entries(params).map(([k, v]) => [k, String(v)]))
       fetch(`${API}/break/${piece}?${q}`)
         .then(r => (r.ok ? r.json() : Promise.reject(new Error(`HTTP ${r.status}`))))
-        .then((r: Run) => { setRun(r); setErr(null); setSel(-1) })
+        .then((r: Run) => { setRun(decode(r)); setErr(null); setSel(-1) })
         .catch(e => setErr(String(e.message ?? e)))
         .finally(() => setBusy(false))
     }, 250)
@@ -109,7 +130,7 @@ export function Timeline({ piece, onShow, onFixed, repaired, initial }: {
       <div className="brief">
         <button disabled={brief.busy} onClick={() => {
           setBrief({ busy: true })
-          fetch(`${API}/brief`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ run }) })
+          fetch(`${API}/brief`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ run: run && strip(run) }) })
             .then(r => r.json().then(j => (r.ok ? setBrief({ text: j.brief }) : setBrief({ err: j.detail ?? `HTTP ${r.status}` }))))
             .catch(e => setBrief({ err: String(e) }))
         }}>{brief.busy ? 'Writing crew brief…' : 'Crew brief (Gemini)'}</button>
