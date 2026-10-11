@@ -52,7 +52,7 @@ UNIT
     systemctl daemon-reload && systemctl enable --now h2out && systemctl restart h2out
     # HTTPS (the site is served over https, so the API must be too): Caddy + automatic certificate
     command -v caddy || (apt-get update -qq && apt-get install -y -qq caddy)
-    printf "%s {\n  handle_path /api/* {\n    reverse_proxy 127.0.0.1:8787\n  }\n  handle {\n    root * /opt/h2out/web\n    file_server\n  }\n}\n" "${HOST}" > /etc/caddy/Caddyfile
+    printf "%s {\n  handle_path /api/* {\n    reverse_proxy 127.0.0.1:8787\n  }\n  handle {\n    @fresh path / /index.html /data/*\n    header @fresh Cache-Control \"no-cache\"\n    root * /opt/h2out/web\n    file_server\n  }\n}\n" "${HOST}" > /etc/caddy/Caddyfile
     systemctl restart caddy
     ufw allow 80/tcp || true; ufw allow 443/tcp || true'
   echo "API: https://$HOST/api/health   site: https://$HOST/ (if WITH_WEB=1)"

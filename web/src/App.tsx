@@ -102,6 +102,9 @@ function nearestPipe(map: maplibregl.Map, x: number, y: number) {
 }
 
 // pipe ids live in the tile feature id (tippecanoe --use-attribute-for-id=k), not in properties
+// content hash of city.pmtiles: a new file gets a new URL, so no browser mixes cached byte ranges of two versions
+const TILES_V = 'bf537bdce0'
+
 const NONE: maplibregl.FilterSpecification = ['==', ['id'], -1]
 /** Pipes whose id is in a (possibly 250k-long) list: 'match' is a hash lookup; 'in' over a literal array is a linear scan per feature. */
 function inPieces(list: number[]): maplibregl.FilterSpecification {
@@ -151,7 +154,7 @@ export default function App() {
 
     map.on('load', () => {
       // whole City network as one PMTiles file (pipes, valves, hydrants layers), fetched by range requests
-      map.addSource('city', { type: 'vector', url: `pmtiles://${new URL(`${DATA}city.pmtiles`, location.href).href}` })
+      map.addSource('city', { type: 'vector', url: `pmtiles://${new URL(`${DATA}city.pmtiles?v=${TILES_V}`, location.href).href}` })
       map.addSource('break', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } })
 
       const D = ['to-number', ['get', 'd'], 8] as const
